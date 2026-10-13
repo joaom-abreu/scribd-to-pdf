@@ -185,3 +185,25 @@ Por padrão, os arquivos ficam em `output/<ID_DO_DOCUMENTO>/`:
 O caminho é relativo à pasta de onde o aplicativo foi executado.
 
 Para retomar uma captura, mantenha as imagens e `capture.json`.
+
+## Desenvolvimento
+
+Instale as dependências de desenvolvimento e execute os testes
+na raiz do projeto.
+
+### Linux e macOS
+
+```bash
+.venv/bin/python -m pip install -e ".[dev]"
+.venv/bin/python -m pytest -q
+```
+
+### Windows — PowerShell
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+Os testes de PDF utilizam imagens geradas localmente e arquivos
+temporários.

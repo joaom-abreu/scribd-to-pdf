@@ -20,3 +20,12 @@ scribd-to-pdf-gui = "scribd_to_pdf.gui:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+    "Pillow==12.3.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

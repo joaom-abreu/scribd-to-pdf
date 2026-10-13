@@ -5,6 +5,7 @@ from playwright.sync_api import Error as PlaywrightError
 from pypdf.errors import PdfReadError
 
 from scribd_to_pdf.browser import inspect_document
+from scribd_to_pdf.cache import load_capture
 from scribd_to_pdf.pdf import create_pdf
 from scribd_to_pdf.scribd import parse_document_url
 
@@ -19,10 +20,33 @@ def main() -> None:
         metavar="URL",
         help="Link do documento no Scribd.",
     )
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        metavar="ARQUIVO",
+        help="Caminho do PDF. Padrão: output/ID/ID.pdf.",
+    )
+    parser.add_argument(
+        "--reuse",
+        action="store_true",
+        help="Reutiliza uma captura completa salva, sem abrir o navegador.",
+    )
     args = parser.parse_args()
 
     try:
         document = parse_document_url(args.url)
+        output_dir = Path("output") / document.document_id
+        output_path = (
+            args.output.expanduser()
+            if args.output is not None
+            else output_dir / f"{document.document_id}.pdf"
+        )
+
+        if output_path.suffix.lower() != ".pdf":
+            raise ValueError(
+                "O destino deve ser um arquivo com extensão .pdf."
+            )
     except ValueError as error:
         parser.error(str(error))
 
@@ -30,13 +54,11 @@ def main() -> None:
     print(f"URL: {document.url}")
 
     try:
-        image_paths = inspect_document(document)
-
-        output_path = (
-                Path("output")
-                / document.document_id
-                / f"{document.document_id}.pdf"
-        )
+        if args.reuse:
+            image_paths = load_capture(document, output_dir)
+            print(f"Reutilizando {len(image_paths)} páginas salvas.")
+        else:
+            image_paths = inspect_document(document)
 
         print("Gerando PDF...")
         pdf_path = create_pdf(image_paths, output_path)

@@ -3,6 +3,7 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
+from scribd_to_pdf.cache import MANIFEST_NAME, save_capture
 from scribd_to_pdf.capture import capture_page
 from scribd_to_pdf.models import Document
 from scribd_to_pdf.navigation import get_total_pages
@@ -48,6 +49,7 @@ def inspect_document(document: Document) -> list[Path]:
             print(f"Total de páginas: {total_pages}")
 
             output_dir = Path("output") / document.document_id
+            (output_dir / MANIFEST_NAME).unlink(missing_ok=True)
             captured_paths: list[Path] = []
 
             for page_number in range(1, total_pages + 1):
@@ -60,6 +62,8 @@ def inspect_document(document: Document) -> list[Path]:
                 )
 
                 captured_paths.append(output_path)
+
+            save_capture(document, output_dir, total_pages)
 
             print(
                 f"Captura concluída: {len(captured_paths)} páginas."

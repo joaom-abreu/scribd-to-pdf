@@ -34,8 +34,30 @@ python -m pip install -e .
 python -m playwright install chromium
 ```
 
-Execute:
+## Opções de execução
+
+Por padrão, o PDF é salvo em `output/ID/ID.pdf`.
+
+Para escolher o destino:
 
 ```bash
-scribd-to-pdf "link"
+scribd-to-pdf "URL_DO_DOCUMENTO" --output "output/livro.pdf"
 ```
+
+Para gerar novamente o PDF usando uma captura completa salva:
+
+```bash
+scribd-to-pdf "URL_DO_DOCUMENTO" --reuse
+```
+
+As opções podem ser combinadas:
+
+```bash
+scribd-to-pdf "URL_DO_DOCUMENTO" --reuse --output "output/livro.pdf"
+```
+
+As capturas ficam em `output/ID/`, junto ao arquivo `capture.json`,
+que registra o total de páginas esperado. A reutilização exige
+esse registro e a presença de todas as imagens correspondentes.
+
+Execute os comandos na raiz do projeto.

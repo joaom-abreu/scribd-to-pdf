@@ -1,12 +1,15 @@
 import argparse
 
+from playwright.sync_api import Error as PlaywrightError
+
+from scribd_to_pdf.browser import inspect_document
 from scribd_to_pdf.scribd import parse_document_url
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="scribd-to-pdf",
-        description="Converte documentos do Scribd em PDF.",
+        description="Abre um documento do Scribd para inspeção.",
     )
     parser.add_argument(
         "url",
@@ -20,9 +23,21 @@ def main() -> None:
     except ValueError as error:
         parser.error(str(error))
 
-    print("Formato do link válido.")
     print(f"ID do documento: {document.document_id}")
     print(f"URL: {document.url}")
+
+    try:
+        inspect_document(document)
+    except PlaywrightError as error:
+        parser.exit(
+            status=1,
+            message=f"\nErro ao acessar o documento: {error}\n",
+        )
+    except (KeyboardInterrupt, EOFError):
+        parser.exit(
+            status=1,
+            message="\nInspeção interrompida.\n",
+        )
 
 
 if __name__ == "__main__":

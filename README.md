@@ -8,8 +8,9 @@ permissão de cópia.
 
 ## Estado atual
 
-O programa recebe um link de documento do Scribd, valida seu formato,
-identifica o ID e normaliza o endereço.
+O programa recebe e valida links de documentos do Scribd.
+Abre o documento no Chromium para inspeção e mantém o navegador
+aberto até o usuário pressionar Enter no terminal.
 
 ## Desenvolvimento
 
@@ -26,6 +27,7 @@ Instale o projeto para desenvolvimento:
 
 ```bash
 python -m pip install -e .
+python -m playwright install chromium
 ```
 
 Execute:

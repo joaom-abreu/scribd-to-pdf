@@ -8,7 +8,9 @@ version = "0.1.0"
 description = "Aplicativo para reunir páginas de documentos do Scribd em um único PDF."
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "playwright==1.63.0",
+]
 
 [project.scripts]
 scribd-to-pdf = "scribd_to_pdf.cli:main"

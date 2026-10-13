@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scribd-to-pdf"
+version = "0.1.0"
+description = "Aplicativo para reunir páginas de documentos do Scribd em um único PDF."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+scribd-to-pdf = "scribd_to_pdf.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -205,5 +205,7 @@ na raiz do projeto.
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-Os testes de PDF utilizam imagens geradas localmente e arquivos
-temporários.
+Os testes utilizam imagens geradas localmente e arquivos temporários.
+Verificam a geração do PDF, a ordem das páginas, a preservação de
+arquivos após falhas e a validação do progresso salvo para retomar
+ou reutilizar capturas.

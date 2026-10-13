@@ -1,1 +1,1 @@
-"""Aplicativo para converter documentos em PDF."""
+"""Aplicativo para converter documentos da scribd em PDF."""

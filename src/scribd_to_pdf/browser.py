@@ -1,4 +1,5 @@
 import re
+from collections.abc import Callable
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
@@ -12,7 +13,16 @@ from scribd_to_pdf.navigation import get_total_pages
 def inspect_document(
         document: Document,
         resume: bool = False,
+        *,
+        on_status: Callable[[str], None] = print,
+        wait_for_ready: Callable[[], None] | None = None,
+        should_cancel: Callable[[], bool] | None = None,
 ) -> list[Path]:
+    def check_cancelled() -> None:
+        if should_cancel is not None and should_cancel():
+            raise InterruptedError("Captura interrompida.")
+
+    check_cancelled()
     output_dir = Path("output") / document.document_id
     progress = load_progress(document, output_dir) if resume else None
 
@@ -24,6 +34,7 @@ def inspect_document(
                 viewport={"width": 1280, "height": 900},
                 device_scale_factor=2,
             )
+            check_cancelled()
 
             response = page.goto(
                 document.url,
@@ -31,15 +42,23 @@ def inspect_document(
                 timeout=60_000,
             )
 
-            if response is not None:
-                print(f"Status HTTP: {response.status}")
+            if response is not None and response.status >= 400:
+                raise ValueError(
+                    f"Não foi possível abrir o documento: HTTP {response.status}."
+                )
 
-            print(f"Título da página: {page.title()}")
+            on_status(f"Documento aberto: {page.title()}")
+            check_cancelled()
 
-            input(
-                "\nAguarde a capa carregar e feche o aviso de privacidade."
-                "\nPressione Enter para ativar Fullscreen e capturar..."
-            )
+            if wait_for_ready is None:
+                input(
+                    "\nAguarde a capa carregar e feche o aviso de privacidade."
+                    "\nPressione Enter para ativar Fullscreen e capturar..."
+                )
+            else:
+                wait_for_ready()
+
+            check_cancelled()
 
             fullscreen_button = page.get_by_role(
                 "button",
@@ -52,7 +71,8 @@ def inspect_document(
             )
 
             total_pages = get_total_pages(page)
-            print(f"Total de páginas: {total_pages}")
+            on_status(f"Total de páginas: {total_pages}")
+            check_cancelled()
             captured_numbers: set[int] = set()
 
             if progress is not None:
@@ -79,14 +99,16 @@ def inspect_document(
             captured_paths: list[Path] = []
 
             for page_number in range(1, total_pages + 1):
+                check_cancelled()
+
                 if page_number in captured_numbers:
-                    print(
+                    on_status(
                         f"Reutilizando página {page_number} de {total_pages}..."
                     )
                     prepare_page(page, page_number)
                     output_path = output_dir / f"page_{page_number:04d}.png"
                 else:
-                    print(
+                    on_status(
                         f"Capturando página {page_number} de {total_pages}..."
                     )
                     output_path = capture_page(
@@ -104,9 +126,10 @@ def inspect_document(
 
                 captured_paths.append(output_path)
 
+            check_cancelled()
             save_capture(document, output_dir, total_pages)
 
-            print(
+            on_status(
                 f"Captura concluída: {len(captured_paths)} páginas."
                 f"\nPasta: {output_dir.resolve()}"
             )

@@ -16,6 +16,7 @@ dependencies = [
 
 [project.scripts]
 scribd-to-pdf = "scribd_to_pdf.cli:main"
+scribd-to-pdf-gui = "scribd_to_pdf.gui:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

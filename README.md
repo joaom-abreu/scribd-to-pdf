@@ -9,11 +9,10 @@ permissão de cópia.
 ## Estado atual
 
 O programa recebe e valida links de documentos do Scribd.
-Abre o documento no Chromium, ativa o modo Fullscreen do visualizador
-e salva a primeira página em output/page_0001.png.
+Abre o visualizador em Fullscreen e captura as três primeiras
+páginas em sequência, salvando as imagens na pasta output.
 
-Antes da captura, o usuário confirma o carregamento da página
-pressionando Enter no terminal.
+Esta etapa testa a navegação e a captura de várias páginas.
 
 ## Desenvolvimento
 

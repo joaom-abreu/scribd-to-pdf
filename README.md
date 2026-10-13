@@ -61,3 +61,25 @@ que registra o total de páginas esperado. A reutilização exige
 esse registro e a presença de todas as imagens correspondentes.
 
 Execute os comandos na raiz do projeto.
+
+### Retomar uma captura interrompida
+
+O progresso é registrado após cada página capturada.
+
+Para continuar uma captura:
+
+```bash
+scribd-to-pdf "URL_DO_DOCUMENTO" --resume
+```
+
+Também é possível escolher o destino do PDF:
+
+```bash
+scribd-to-pdf "URL_DO_DOCUMENTO" --resume --output "output/livro.pdf"
+```
+
+| Opção | Comportamento |
+| --- | --- |
+| Sem `--reuse` ou `--resume` | Inicia uma nova captura. |
+| `--reuse` | Gera o PDF usando uma captura completa, sem abrir o navegador. |
+| `--resume` | Abre o navegador e captura as páginas que faltam. |

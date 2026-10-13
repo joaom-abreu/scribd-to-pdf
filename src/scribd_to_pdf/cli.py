@@ -27,10 +27,16 @@ def main() -> None:
         metavar="ARQUIVO",
         help="Caminho do PDF. Padrão: output/ID/ID.pdf.",
     )
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--reuse",
         action="store_true",
         help="Reutiliza uma captura completa salva, sem abrir o navegador.",
+    )
+    mode.add_argument(
+        "--resume",
+        action="store_true",
+        help="Retoma uma captura, abrindo o navegador para capturar o que falta.",
     )
     args = parser.parse_args()
 
@@ -58,7 +64,7 @@ def main() -> None:
             image_paths = load_capture(document, output_dir)
             print(f"Reutilizando {len(image_paths)} páginas salvas.")
         else:
-            image_paths = inspect_document(document)
+            image_paths = inspect_document(document, resume=args.resume)
 
         print("Gerando PDF...")
         pdf_path = create_pdf(image_paths, output_path)

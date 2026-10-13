@@ -3,13 +3,19 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
-from scribd_to_pdf.cache import MANIFEST_NAME, save_capture
-from scribd_to_pdf.capture import capture_page
+from scribd_to_pdf.cache import load_progress, save_capture, save_progress
+from scribd_to_pdf.capture import capture_page, prepare_page
 from scribd_to_pdf.models import Document
 from scribd_to_pdf.navigation import get_total_pages
 
 
-def inspect_document(document: Document) -> list[Path]:
+def inspect_document(
+        document: Document,
+        resume: bool = False,
+) -> list[Path]:
+    output_dir = Path("output") / document.document_id
+    progress = load_progress(document, output_dir) if resume else None
+
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=False)
 
@@ -47,19 +53,54 @@ def inspect_document(document: Document) -> list[Path]:
 
             total_pages = get_total_pages(page)
             print(f"Total de páginas: {total_pages}")
+            captured_numbers: set[int] = set()
 
-            output_dir = Path("output") / document.document_id
-            (output_dir / MANIFEST_NAME).unlink(missing_ok=True)
+            if progress is not None:
+                saved_total, saved_numbers = progress
+
+                if saved_total != total_pages:
+                    raise ValueError(
+                        "O total de páginas difere da captura registrada. "
+                        "Execute novamente sem --resume."
+                    )
+
+                for number in saved_numbers:
+                    path = output_dir / f"page_{number:04d}.png"
+
+                    if path.is_file() and path.stat().st_size > 0:
+                        captured_numbers.add(number)
+
+            save_progress(
+                document,
+                output_dir,
+                total_pages,
+                captured_numbers,
+            )
             captured_paths: list[Path] = []
 
             for page_number in range(1, total_pages + 1):
-                print(f"Capturando página {page_number} de {total_pages}...")
-
-                output_path = capture_page(
-                    page,
-                    page_number=page_number,
-                    output_dir=output_dir,
-                )
+                if page_number in captured_numbers:
+                    print(
+                        f"Reutilizando página {page_number} de {total_pages}..."
+                    )
+                    prepare_page(page, page_number)
+                    output_path = output_dir / f"page_{page_number:04d}.png"
+                else:
+                    print(
+                        f"Capturando página {page_number} de {total_pages}..."
+                    )
+                    output_path = capture_page(
+                        page,
+                        page_number=page_number,
+                        output_dir=output_dir,
+                    )
+                    captured_numbers.add(page_number)
+                    save_progress(
+                        document,
+                        output_dir,
+                        total_pages,
+                        captured_numbers,
+                    )
 
                 captured_paths.append(output_path)
 

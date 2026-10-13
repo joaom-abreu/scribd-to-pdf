@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
 
-from playwright.sync_api import Page
+from playwright.sync_api import Locator, Page
 
 
 def get_page_numbers(page: Page) -> list[int]:
@@ -20,11 +20,15 @@ def get_page_numbers(page: Page) -> list[int]:
     return sorted(numbers)
 
 
-def capture_page(page: Page, page_number: int, output_dir: Path) -> Path:
+def prepare_page(page: Page, page_number: int) -> Locator:
     document_page = page.locator(f"#page{page_number}")
-
     document_page.wait_for(state="attached", timeout=30_000)
     document_page.scroll_into_view_if_needed(timeout=30_000)
+    return document_page
+
+
+def capture_page(page: Page, page_number: int, output_dir: Path) -> Path:
+    document_page = prepare_page(page, page_number)
 
     document_page.wait_for_function(
         """

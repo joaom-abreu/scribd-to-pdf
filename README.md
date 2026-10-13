@@ -8,7 +8,8 @@ permissão de cópia.
 
 ## Estado atual
 
-Estrutura inicial do projeto e comando de execução pelo terminal.
+O programa recebe um link de documento do Scribd, valida seu formato,
+identifica o ID e normaliza o endereço.
 
 ## Desenvolvimento
 
@@ -30,5 +31,5 @@ python -m pip install -e .
 Execute:
 
 ```bash
-scribd-to-pdf
+scribd-to-pdf "link"
 ```

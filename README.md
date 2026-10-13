@@ -209,3 +209,46 @@ Os testes utilizam imagens geradas localmente e arquivos temporários.
 Verificam a geração do PDF, a ordem das páginas, a preservação de
 arquivos após falhas e a validação do progresso salvo para retomar
 ou reutilizar capturas.
+
+## Gerar o executável da interface gráfica
+
+O empacotamento inclui Python, as dependências e o Chromium.
+
+### Linux e macOS
+
+```bash
+.venv/bin/python -m pip install -e ".[build]"
+.venv/bin/python scripts/build_gui.py
+```
+
+No Fedora, utilize um ambiente criado com `/usr/bin/python3`,
+para usar o Tkinter da distribuição.
+
+### Windows — PowerShell
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[build]"
+.\.venv\Scripts\python.exe scripts/build_gui.py
+```
+
+### Resultado
+
+| Sistema | Aplicativo gerado |
+| --- | --- |
+| Linux | `dist/scribd-to-pdf-gui/scribd-to-pdf-gui` |
+| Windows | `dist/scribd-to-pdf-gui/scribd-to-pdf-gui.exe` |
+| macOS | `dist/scribd-to-pdf-gui.app` |
+
+Em Linux e Windows, distribua a pasta `scribd-to-pdf-gui`
+completa, incluindo os arquivos de suporte. No macOS, distribua
+o aplicativo `.app` completo.
+
+Gere e valide cada pacote no sistema e na arquitetura de destino.
+No Linux, a compatibilidade também depende da versão da
+distribuição e das bibliotecas do sistema.
+
+A versão executável salva as capturas e o PDF padrão em
+`scribd-to-pdf/output/`, dentro da pasta pessoal do usuário.
+
+Para reutilizar capturas feitas pela execução em Python, copie
+as pastas dos documentos da antiga `output/` para essa pasta.

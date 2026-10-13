@@ -3,11 +3,12 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
-from scribd_to_pdf.capture import capture_page, get_page_numbers
+from scribd_to_pdf.capture import capture_page
 from scribd_to_pdf.models import Document
+from scribd_to_pdf.navigation import get_total_pages
 
 
-def inspect_document(document: Document) -> None:
+def inspect_document(document: Document) -> list[Path]:
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=False)
 
@@ -43,13 +44,14 @@ def inspect_document(document: Document) -> None:
                 {"width": 1280, "height": 1800},
             )
 
-            page_numbers = get_page_numbers(page)
-            print(f"Páginas presentes no HTML: {page_numbers}")
+            total_pages = get_total_pages(page)
+            print(f"Total de páginas: {total_pages}")
 
-            output_dir = Path("output")
+            output_dir = Path("output") / document.document_id
+            captured_paths: list[Path] = []
 
-            for page_number in range(1, 4):
-                print(f"Capturando página {page_number}...")
+            for page_number in range(1, total_pages + 1):
+                print(f"Capturando página {page_number} de {total_pages}...")
 
                 output_path = capture_page(
                     page,
@@ -57,6 +59,13 @@ def inspect_document(document: Document) -> None:
                     output_dir=output_dir,
                 )
 
-                print(f"Captura salva em: {output_path.resolve()}")
+                captured_paths.append(output_path)
+
+            print(
+                f"Captura concluída: {len(captured_paths)} páginas."
+                f"\nPasta: {output_dir.resolve()}"
+            )
+
+            return captured_paths
         finally:
             browser.close()

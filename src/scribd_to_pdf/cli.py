@@ -28,10 +28,10 @@ def main() -> None:
 
     try:
         inspect_document(document)
-    except PlaywrightError as error:
+    except (PlaywrightError, ValueError, OSError) as error:
         parser.exit(
             status=1,
-            message=f"\nErro ao acessar o documento: {error}\n",
+            message=f"\nFalha na captura: {error}\n",
         )
     except (KeyboardInterrupt, EOFError):
         parser.exit(

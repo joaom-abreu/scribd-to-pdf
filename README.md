@@ -9,10 +9,10 @@ permissão de cópia.
 ## Estado atual
 
 O programa recebe e valida links de documentos do Scribd.
-Abre o visualizador em Fullscreen e captura as três primeiras
-páginas em sequência, salvando as imagens na pasta output.
+Lê o total de páginas informado pelo visualizador e captura
+as páginas em sequência, usando o modo Fullscreen.
 
-Esta etapa testa a navegação e a captura de várias páginas.
+As imagens são salvas em output/ID_DO_DOCUMENTO/.
 
 ## Desenvolvimento
 

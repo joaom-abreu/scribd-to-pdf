@@ -1,15 +1,18 @@
 import argparse
+from pathlib import Path
 
 from playwright.sync_api import Error as PlaywrightError
+from pypdf.errors import PdfReadError
 
 from scribd_to_pdf.browser import inspect_document
+from scribd_to_pdf.pdf import create_pdf
 from scribd_to_pdf.scribd import parse_document_url
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="scribd-to-pdf",
-        description="Abre um documento do Scribd para inspeção.",
+        description="Converte documentos do Scribd em PDF.",
     )
     parser.add_argument(
         "url",
@@ -27,16 +30,26 @@ def main() -> None:
     print(f"URL: {document.url}")
 
     try:
-        inspect_document(document)
-    except (PlaywrightError, ValueError, OSError) as error:
+        image_paths = inspect_document(document)
+
+        output_path = (
+                Path("output")
+                / document.document_id
+                / f"{document.document_id}.pdf"
+        )
+
+        print("Gerando PDF...")
+        pdf_path = create_pdf(image_paths, output_path)
+        print(f"PDF salvo em: {pdf_path.resolve()}")
+    except (PlaywrightError, PdfReadError, ValueError, OSError) as error:
         parser.exit(
             status=1,
-            message=f"\nFalha na captura: {error}\n",
+            message=f"\nFalha na conversão: {error}\n",
         )
     except (KeyboardInterrupt, EOFError):
         parser.exit(
             status=1,
-            message="\nInspeção interrompida.\n",
+            message="\nConversão interrompida.\n",
         )
 
 

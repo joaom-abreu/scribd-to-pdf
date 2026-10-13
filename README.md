@@ -8,11 +8,13 @@ permissão de cópia.
 
 ## Estado atual
 
-O programa recebe e valida links de documentos do Scribd.
-Lê o total de páginas informado pelo visualizador e captura
-as páginas em sequência, usando o modo Fullscreen.
+O programa recebe um link de documento do Scribd, identifica
+o total de páginas e captura as páginas em Fullscreen.
 
-As imagens são salvas em output/ID_DO_DOCUMENTO/.
+Depois, reúne as imagens em um PDF único e verifica sua
+quantidade de páginas.
+
+As imagens e o PDF são salvos em output/ID_DO_DOCUMENTO/.
 
 ## Desenvolvimento
 

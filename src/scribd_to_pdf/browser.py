@@ -1,5 +1,9 @@
+import re
+from pathlib import Path
+
 from playwright.sync_api import sync_playwright
 
+from scribd_to_pdf.capture import capture_first_page
 from scribd_to_pdf.models import Document
 
 
@@ -10,6 +14,7 @@ def inspect_document(document: Document) -> None:
         try:
             page = browser.new_page(
                 viewport={"width": 1280, "height": 900},
+                device_scale_factor=2,
             )
 
             response = page.goto(
@@ -24,8 +29,25 @@ def inspect_document(document: Document) -> None:
             print(f"Título da página: {page.title()}")
 
             input(
-                "\nConfira o documento no navegador."
-                "\nPressione Enter neste terminal para fechar..."
+                "\nAguarde a capa carregar e feche o aviso de privacidade."
+                "\nPressione Enter para ativar Fullscreen e capturar..."
             )
+
+            fullscreen_button = page.get_by_role(
+                "button",
+                name=re.compile(r"full\s*screen", re.IGNORECASE),
+            )
+            fullscreen_button.click(timeout=30_000)
+
+            page.set_viewport_size(
+                {"width": 1280, "height": 1800},
+            )
+
+            output_path = capture_first_page(
+                page,
+                output_dir=Path("output"),
+            )
+
+            print(f"Captura salva em: {output_path.resolve()}")
         finally:
             browser.close()

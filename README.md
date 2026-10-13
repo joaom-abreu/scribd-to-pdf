@@ -9,8 +9,11 @@ permissão de cópia.
 ## Estado atual
 
 O programa recebe e valida links de documentos do Scribd.
-Abre o documento no Chromium para inspeção e mantém o navegador
-aberto até o usuário pressionar Enter no terminal.
+Abre o documento no Chromium, ativa o modo Fullscreen do visualizador
+e salva a primeira página em output/page_0001.png.
+
+Antes da captura, o usuário confirma o carregamento da página
+pressionando Enter no terminal.
 
 ## Desenvolvimento
 

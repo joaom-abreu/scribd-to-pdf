@@ -3,7 +3,7 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
-from scribd_to_pdf.capture import capture_first_page
+from scribd_to_pdf.capture import capture_page, get_page_numbers
 from scribd_to_pdf.models import Document
 
 
@@ -43,11 +43,20 @@ def inspect_document(document: Document) -> None:
                 {"width": 1280, "height": 1800},
             )
 
-            output_path = capture_first_page(
-                page,
-                output_dir=Path("output"),
-            )
+            page_numbers = get_page_numbers(page)
+            print(f"Páginas presentes no HTML: {page_numbers}")
 
-            print(f"Captura salva em: {output_path.resolve()}")
+            output_dir = Path("output")
+
+            for page_number in range(1, 4):
+                print(f"Capturando página {page_number}...")
+
+                output_path = capture_page(
+                    page,
+                    page_number=page_number,
+                    output_dir=output_dir,
+                )
+
+                print(f"Captura salva em: {output_path.resolve()}")
         finally:
             browser.close()

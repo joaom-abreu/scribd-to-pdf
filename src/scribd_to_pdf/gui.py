@@ -12,6 +12,7 @@ from scribd_to_pdf.models import Document
 from scribd_to_pdf.ocr import add_ocr, check_ocr_available
 from scribd_to_pdf.openers import open_path
 from scribd_to_pdf.pdf import create_pdf
+from scribd_to_pdf.preferences import Preferences, load_preferences, save_preferences
 from scribd_to_pdf.scribd import parse_document_url
 
 
@@ -39,6 +40,12 @@ class Application:
         self.running = False
         self.closing = False
         self.last_pdf: Path | None = None
+        self.preferences = load_preferences()
+        self.destination_folder = (
+            Path(self.preferences.destination_folder)
+            if self.preferences.destination_folder
+            else None
+        )
 
         root.title("Scribd to PDF")
 
@@ -104,7 +111,7 @@ class Application:
 
         ttk.Label(
             frame,
-            text="Destino do PDF (vazio usa output/ID/ID.pdf)",
+            text="Destino do PDF (opcional)",
             font=self.ui_font,
         ).pack(anchor="w")
 
@@ -221,19 +228,28 @@ class Application:
             "Cole o link, escolha o modo e clique em Iniciar."
         )
 
+        if self.destination_folder is not None:
+            self._log(f"Pasta lembrada: {self.destination_folder}")
+            self._log(
+                "Destino vazio salva o PDF nessa pasta, "
+                "usando o ID do documento como nome."
+            )
+        else:
+            self._log("Destino vazio usa output/ID/ID.pdf.")
+
         self.url_entry.focus_set()
         root.after(100, self._poll)
 
     def _build_ocr_controls(self, parent: ttk.Frame) -> None:
         self.ocr_enabled = tk.BooleanVar(
             master=self.root,
-            value=False,
+            value=self.preferences.ocr_enabled,
         )
 
         self.ocr_languages = {
             code: tk.BooleanVar(
                 master=self.root,
-                value=code == "por",
+                value=code in self.preferences.ocr_languages,
             )
             for code in OCR_LANGUAGES.values()
         }
@@ -362,16 +378,51 @@ class Application:
         ).start()
 
     def _browse(self) -> None:
+        options = {}
+
+        if self.destination_folder is not None:
+            options["initialdir"] = str(self.destination_folder)
+
         selected = filedialog.asksaveasfilename(
             parent=self.root,
             title="Salvar PDF",
             initialfile="documento.pdf",
             defaultextension=".pdf",
             filetypes=[("Arquivo PDF", "*.pdf")],
+            **options,
         )
 
         if selected:
             self.destination.set(selected)
+            self._save_preferences()
+
+    def _save_preferences(self) -> None:
+        try:
+            destination = self.destination.get().strip()
+
+            if destination:
+                path = Path(destination).expanduser()
+
+                if path.suffix.lower() == ".pdf":
+                    self.destination_folder = path.resolve().parent
+
+            preferences = Preferences(
+                destination_folder=(
+                    str(self.destination_folder)
+                    if self.destination_folder is not None
+                    else ""
+                ),
+                ocr_enabled=self.ocr_enabled.get(),
+                ocr_languages=tuple(
+                    code
+                    for code, variable in self.ocr_languages.items()
+                    if variable.get()
+                ),
+            )
+            save_preferences(preferences)
+            self.preferences = preferences
+        except (OSError, ValueError, RuntimeError) as error:
+            self._log(f"Não foi possível salvar as preferências: {error}")
 
     def _start(self) -> None:
         if self.running:
@@ -381,13 +432,16 @@ class Application:
             document = parse_document_url(self.url.get())
             destination = self.destination.get().strip()
 
-            output_path = (
-                Path(destination).expanduser()
-                if destination
-                else Path("output")
-                     / document.document_id
-                     / f"{document.document_id}.pdf"
-            )
+            if destination:
+                output_path = Path(destination).expanduser()
+            elif self.destination_folder is not None:
+                output_path = self.destination_folder / f"{document.document_id}.pdf"
+            else:
+                output_path = (
+                    Path("output")
+                    / document.document_id
+                    / f"{document.document_id}.pdf"
+                )
 
             if output_path.suffix.lower() != ".pdf":
                 raise ValueError(
@@ -407,6 +461,7 @@ class Application:
             )
             return
 
+        self._save_preferences()
         mode = self.mode.get()
         self.ready_event.clear()
         self.cancel_event.clear()
@@ -448,6 +503,8 @@ class Application:
             )
 
     def _close(self) -> None:
+        self._save_preferences()
+
         if self.running:
             self.closing = True
             self._cancel()

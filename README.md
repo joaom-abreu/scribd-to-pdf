@@ -2,10 +2,6 @@
 
 Aplicativo em Python que captura as páginas de um documento aberto no leitor do Scribd e as reúne, na ordem, em um único PDF. Funciona pela interface gráfica ou pelo terminal e pode aplicar OCR para deixar o texto pesquisável e selecionável.
 
-## Uso responsável
-
-Use o aplicativo apenas com documentos que você tem direito de copiar, como uploads próprios, obras em domínio público ou materiais com licença que permita a cópia. Respeite os termos de uso do Scribd e os direitos autorais dos autores.
-
 ## Recursos
 
 - Captura das páginas com o Chromium, controlado pelo Playwright.

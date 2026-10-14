@@ -10,6 +10,7 @@ from scribd_to_pdf.browser import inspect_document
 from scribd_to_pdf.cache import load_capture
 from scribd_to_pdf.models import Document
 from scribd_to_pdf.ocr import add_ocr, check_ocr_available
+from scribd_to_pdf.openers import open_path
 from scribd_to_pdf.pdf import create_pdf
 from scribd_to_pdf.scribd import parse_document_url
 
@@ -37,6 +38,7 @@ class Application:
         self.cancel_event = threading.Event()
         self.running = False
         self.closing = False
+        self.last_pdf: Path | None = None
 
         root.title("Scribd to PDF")
 
@@ -179,6 +181,30 @@ class Application:
         )
         self.cancel_button.pack(side="left")
 
+        result_buttons = ttk.Frame(frame)
+        result_buttons.pack(fill="x", pady=(0, 16))
+
+        self.open_pdf_button = ttk.Button(
+            result_buttons,
+            text="Abrir PDF",
+            command=self._open_pdf,
+            state="disabled",
+            style="App.TButton",
+        )
+        self.open_pdf_button.pack(side="left")
+
+        self.open_folder_button = ttk.Button(
+            result_buttons,
+            text="Abrir pasta",
+            command=self._open_folder,
+            state="disabled",
+            style="App.TButton",
+        )
+        self.open_folder_button.pack(
+            side="left",
+            padx=(12, 0),
+        )
+
         self.log = ScrolledText(
             frame,
             height=10,
@@ -306,6 +332,34 @@ class Application:
         )
 
         self._update_ocr_controls()
+        self._update_result_buttons()
+
+    def _update_result_buttons(self) -> None:
+        enabled = self.last_pdf is not None and not self.running
+        state = "normal" if enabled else "disabled"
+
+        self.open_pdf_button.configure(state=state)
+        self.open_folder_button.configure(state=state)
+
+    def _open_pdf(self) -> None:
+        if self.last_pdf is not None and not self.running:
+            self._open_result(self.last_pdf)
+
+    def _open_folder(self) -> None:
+        if self.last_pdf is not None and not self.running:
+            self._open_result(self.last_pdf.parent)
+
+    def _open_result(self, path: Path) -> None:
+        def open_in_background() -> None:
+            try:
+                open_path(path)
+            except Exception as error:
+                self.events.put(("open_error", str(error)))
+
+        threading.Thread(
+            target=open_in_background,
+            daemon=True,
+        ).start()
 
     def _browse(self) -> None:
         selected = filedialog.asksaveasfilename(
@@ -356,6 +410,7 @@ class Application:
         mode = self.mode.get()
         self.ready_event.clear()
         self.cancel_event.clear()
+        self.last_pdf = None
         self._set_running(True)
 
         self._log(f"\nDocumento: {document.document_id}")
@@ -486,10 +541,22 @@ class Application:
                 self._log(text)
                 self.cancel_button.configure(state="disabled")
 
+            elif kind == "open_error":
+                self._log(f"Falha ao abrir: {text}")
+
+                if not self.closing:
+                    messagebox.showerror(
+                        "Não foi possível abrir",
+                        text,
+                        parent=self.root,
+                    )
+
             else:
                 self._set_running(False)
 
                 if kind == "done":
+                    self.last_pdf = Path(text)
+                    self._update_result_buttons()
                     self._log(f"PDF salvo em: {text}")
 
                 elif kind == "cancelled":

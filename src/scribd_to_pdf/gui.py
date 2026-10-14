@@ -3,17 +3,30 @@ import threading
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
-from tkinter.scrolledtext import ScrolledText
 from tkinter import font as tkfont
+from tkinter.scrolledtext import ScrolledText
 
 from scribd_to_pdf.browser import inspect_document
 from scribd_to_pdf.cache import load_capture
 from scribd_to_pdf.models import Document
+from scribd_to_pdf.ocr import add_ocr, check_ocr_available
 from scribd_to_pdf.pdf import create_pdf
 from scribd_to_pdf.scribd import parse_document_url
 
 
-MODES = ("Nova captura", "Retomar captura", "Usar captura completa")
+MODES = (
+    "Nova captura",
+    "Retomar captura",
+    "Usar captura completa",
+)
+
+OCR_LANGUAGES = {
+    "Português": "por",
+    "Inglês": "eng",
+    "Espanhol": "spa",
+    "Francês": "fra",
+    "Alemão": "deu",
+}
 
 
 class Application:
@@ -26,8 +39,10 @@ class Application:
         self.closing = False
 
         root.title("Scribd to PDF")
+
         width = min(1100, root.winfo_screenwidth() - 80)
-        height = min(740, root.winfo_screenheight() - 100)
+        height = min(880, root.winfo_screenheight() - 100)
+
         root.geometry(f"{width}x{height}")
         root.minsize(min(width, 900), min(height, 600))
         root.protocol("WM_DELETE_WINDOW", self._close)
@@ -49,13 +64,20 @@ class Application:
             font=self.ui_font,
             padding=(16, 10),
         )
-        style.configure("App.TEntry", padding=(10, 8))
+        style.configure(
+            "App.TEntry",
+            padding=(10, 8),
+        )
         style.configure(
             "App.TCombobox",
             padding=(10, 8),
             arrowsize=26,
         )
-        root.option_add("*TCombobox*Listbox.font", self.ui_font)
+
+        root.option_add(
+            "*TCombobox*Listbox.font",
+            self.ui_font,
+        )
 
         self.url = tk.StringVar()
         self.destination = tk.StringVar()
@@ -86,13 +108,18 @@ class Application:
 
         destination_row = ttk.Frame(frame)
         destination_row.pack(fill="x", pady=(8, 16))
+
         self.destination_entry = ttk.Entry(
             destination_row,
             textvariable=self.destination,
             font=self.ui_font,
             style="App.TEntry",
         )
-        self.destination_entry.pack(side="left", fill="x", expand=True)
+        self.destination_entry.pack(
+            side="left",
+            fill="x",
+            expand=True,
+        )
 
         self.browse_button = ttk.Button(
             destination_row,
@@ -100,7 +127,10 @@ class Application:
             command=self._browse,
             style="App.TButton",
         )
-        self.browse_button.pack(side="left", padx=(12, 0))
+        self.browse_button.pack(
+            side="left",
+            padx=(12, 0),
+        )
 
         ttk.Label(
             frame,
@@ -117,6 +147,8 @@ class Application:
             style="App.TCombobox",
         )
         self.mode_box.pack(fill="x", pady=(8, 16))
+
+        self._build_ocr_controls(frame)
 
         buttons = ttk.Frame(frame)
         buttons.pack(fill="x", pady=(0, 16))
@@ -159,9 +191,92 @@ class Application:
         self.log.vbar.configure(width=24)
         self.log.pack(fill="both", expand=True)
 
-        self._log("Cole o link, escolha o modo e clique em Iniciar.")
+        self._log(
+            "Cole o link, escolha o modo e clique em Iniciar."
+        )
+
         self.url_entry.focus_set()
         root.after(100, self._poll)
+
+    def _build_ocr_controls(self, parent: ttk.Frame) -> None:
+        self.ocr_enabled = tk.BooleanVar(
+            master=self.root,
+            value=False,
+        )
+
+        self.ocr_languages = {
+            code: tk.BooleanVar(
+                master=self.root,
+                value=code == "por",
+            )
+            for code in OCR_LANGUAGES.values()
+        }
+
+        style = ttk.Style(self.root)
+        style.configure(
+            "App.TCheckbutton",
+            font=self.ui_font,
+            padding=(0, 6),
+        )
+
+        area = ttk.Frame(parent)
+        area.pack(fill="x", pady=(0, 16))
+
+        self.ocr_button = ttk.Checkbutton(
+            area,
+            text="Adicionar texto pesquisável e selecionável (OCR)",
+            variable=self.ocr_enabled,
+            command=self._update_ocr_controls,
+            style="App.TCheckbutton",
+        )
+        self.ocr_button.pack(anchor="w")
+
+        languages_frame = ttk.Frame(area)
+        languages_frame.pack(fill="x")
+
+        self.ocr_language_buttons = []
+
+        for index, (name, code) in enumerate(OCR_LANGUAGES.items()):
+            button = ttk.Checkbutton(
+                languages_frame,
+                text=name,
+                variable=self.ocr_languages[code],
+                style="App.TCheckbutton",
+            )
+            button.grid(
+                row=index // 3,
+                column=index % 3,
+                sticky="w",
+                padx=(0, 20),
+            )
+            self.ocr_language_buttons.append(button)
+
+        self._update_ocr_controls()
+
+    def _update_ocr_controls(self) -> None:
+        enabled = self.ocr_enabled.get() and not self.running
+
+        for button in self.ocr_language_buttons:
+            button.configure(
+                state="normal" if enabled else "disabled"
+            )
+
+    def _get_ocr_language(self) -> str | None:
+        if not self.ocr_enabled.get():
+            return None
+
+        selected = [
+            code
+            for code, variable in self.ocr_languages.items()
+            if variable.get()
+        ]
+
+        if not selected:
+            raise ValueError(
+                "Selecione pelo menos um idioma para o OCR."
+            )
+
+        return "+".join(selected)
 
     def _log(self, text: str) -> None:
         self.log.configure(state="normal")
@@ -178,6 +293,7 @@ class Application:
                 self.destination_entry,
                 self.browse_button,
                 self.start_button,
+                self.ocr_button,
         ):
             widget.configure(state=state)
 
@@ -189,6 +305,8 @@ class Application:
             state="normal" if running else "disabled"
         )
 
+        self._update_ocr_controls()
+
     def _browse(self) -> None:
         selected = filedialog.asksaveasfilename(
             parent=self.root,
@@ -197,6 +315,7 @@ class Application:
             defaultextension=".pdf",
             filetypes=[("Arquivo PDF", "*.pdf")],
         )
+
         if selected:
             self.destination.set(selected)
 
@@ -207,6 +326,7 @@ class Application:
         try:
             document = parse_document_url(self.url.get())
             destination = self.destination.get().strip()
+
             output_path = (
                 Path(destination).expanduser()
                 if destination
@@ -219,9 +339,15 @@ class Application:
                 raise ValueError(
                     "O destino deve ser um arquivo com extensão .pdf."
                 )
+
+            ocr_language = self._get_ocr_language()
+
+            if ocr_language is not None:
+                check_ocr_available()
+
         except (ValueError, OSError, RuntimeError) as error:
             messagebox.showerror(
-                "Dados inválidos",
+                "Não foi possível iniciar",
                 str(error),
                 parent=self.root,
             )
@@ -231,12 +357,23 @@ class Application:
         self.ready_event.clear()
         self.cancel_event.clear()
         self._set_running(True)
+
         self._log(f"\nDocumento: {document.document_id}")
         self._log(f"Destino: {output_path}")
 
+        if ocr_language is not None:
+            selected_names = [
+                name
+                for name, code in OCR_LANGUAGES.items()
+                if code in ocr_language.split("+")
+            ]
+            self._log("OCR: " + ", ".join(selected_names))
+        else:
+            self._log("OCR: desativado")
+
         threading.Thread(
             target=self._convert,
-            args=(document, output_path, mode),
+            args=(document, output_path, mode, ocr_language),
             daemon=False,
         ).start()
 
@@ -250,7 +387,10 @@ class Application:
             self.ready_event.set()
             self.ready_button.configure(state="disabled")
             self.cancel_button.configure(state="disabled")
-            self._log("Interrompendo após a operação em andamento...")
+
+            self._log(
+                "Interrompendo após a operação em andamento..."
+            )
 
     def _close(self) -> None:
         if self.running:
@@ -272,6 +412,7 @@ class Application:
             "No navegador, aguarde a capa e feche o aviso de privacidade.\n"
             "Depois, clique em Capturar páginas nesta janela.",
         ))
+
         self.ready_event.wait()
         self._check_cancelled()
 
@@ -280,6 +421,7 @@ class Application:
             document: Document,
             output_path: Path,
             mode: str,
+            ocr_language: str | None = None,
     ) -> None:
         try:
             self._check_cancelled()
@@ -287,6 +429,7 @@ class Application:
             if mode == MODES[2]:
                 folder = Path("output") / document.document_id
                 image_paths = load_capture(document, folder)
+
                 self._status(
                     f"Reutilizando {len(image_paths)} páginas salvas."
                 )
@@ -302,9 +445,25 @@ class Application:
             self._check_cancelled()
             self.events.put(("pdf", "Gerando PDF..."))
             pdf_path = create_pdf(image_paths, output_path)
+
+            if ocr_language is not None:
+                self._check_cancelled()
+                self._status(
+                    "Reconhecendo o texto com OCR. Aguarde..."
+                )
+                pdf_path = add_ocr(
+                    pdf_path,
+                    language=ocr_language,
+                )
+
             self.events.put(("done", str(pdf_path.resolve())))
+
         except InterruptedError:
-            self.events.put(("cancelled", "Conversão interrompida."))
+            self.events.put((
+                "cancelled",
+                "Conversão interrompida.",
+            ))
+
         except Exception as error:
             self.events.put(("error", str(error)))
 
@@ -317,23 +476,31 @@ class Application:
 
             if kind == "status":
                 self._log(text)
+
             elif kind == "ready":
                 if not self.cancel_event.is_set():
                     self._log(text)
                     self.ready_button.configure(state="normal")
+
             elif kind == "pdf":
                 self._log(text)
                 self.cancel_button.configure(state="disabled")
+
             else:
                 self._set_running(False)
 
                 if kind == "done":
                     self._log(f"PDF salvo em: {text}")
+
                 elif kind == "cancelled":
                     self._log(text)
-                    self._log("Para continuar, escolha Retomar captura.")
+                    self._log(
+                        "Para continuar, escolha Retomar captura."
+                    )
+
                 elif kind == "error":
                     self._log(f"Falha: {text}")
+
                     if not self.closing:
                         messagebox.showerror(
                             "Falha na conversão",
@@ -351,6 +518,7 @@ class Application:
 def main() -> None:
     root = tk.Tk()
     application = Application(root)
+
     try:
         root.mainloop()
     finally:

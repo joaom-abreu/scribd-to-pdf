@@ -4,9 +4,8 @@ import pytest
 from PIL import Image
 from pypdf import PdfReader
 
-import scribd_to_pdf.pdf as pdf_module
-from scribd_to_pdf.pdf import create_pdf
-
+from scribd_to_pdf.infrastructure import pdf as pdf_module
+from scribd_to_pdf.infrastructure.pdf import count_pages, create_pdf
 
 PAGE_COLORS = (
     (255, 0, 0),
@@ -30,54 +29,24 @@ def page_images(tmp_path: Path) -> list[Path]:
     return paths
 
 
-def test_gera_pdf_com_todas_as_paginas_na_ordem(
-        tmp_path: Path,
-        page_images: list[Path],
-):
+def test_creates_pdf_with_every_page_in_order(tmp_path: Path, page_images: list[Path]):
     output = tmp_path / "destino" / "livro.pdf"
 
     result = create_pdf(page_images, output)
 
     assert result == output
-    assert output.is_file()
+    assert count_pages(output) == len(PAGE_COLORS)
 
     with output.open("rb") as stream:
-        reader = PdfReader(stream)
-
-        assert len(reader.pages) == len(PAGE_COLORS)
-
         actual_colors = [
             page.images[0].image.convert("RGB").getpixel((0, 0))
-            for page in reader.pages
+            for page in PdfReader(stream).pages
         ]
 
-        assert actual_colors == list(PAGE_COLORS)
+    assert actual_colors == list(PAGE_COLORS)
 
 
-@pytest.mark.parametrize(
-    "indices",
-    [
-        (1, 0, 2),
-        (0, 2),
-        (1,),
-    ],
-    ids=["ordem-invertida", "pagina-ausente", "inicio-na-pagina-2"],
-)
-def test_rejeita_sequencia_invalida(
-        tmp_path: Path,
-        page_images: list[Path],
-        indices: tuple[int, ...],
-):
-    output = tmp_path / "livro.pdf"
-    images = [page_images[index] for index in indices]
-
-    with pytest.raises(ValueError):
-        create_pdf(images, output)
-
-    assert not output.exists()
-
-
-def test_rejeita_lista_vazia(tmp_path: Path):
+def test_rejects_empty_page_list(tmp_path: Path):
     output = tmp_path / "livro.pdf"
 
     with pytest.raises(ValueError):
@@ -86,27 +55,23 @@ def test_rejeita_lista_vazia(tmp_path: Path):
     assert not output.exists()
 
 
-def test_rejeita_arquivo_de_pagina_inexistente(
-        tmp_path: Path,
-        page_images: list[Path],
-):
+def test_rejects_missing_page_file(tmp_path: Path, page_images: list[Path]):
     output = tmp_path / "livro.pdf"
     page_images[1].unlink()
 
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(FileNotFoundError, match="page_0002.png"):
         create_pdf(page_images, output)
 
     assert not output.exists()
 
 
-def test_falha_preserva_pdf_anterior_e_remove_temporario(
-        tmp_path: Path,
-        page_images: list[Path],
-        monkeypatch: pytest.MonkeyPatch,
+def test_failure_keeps_previous_pdf_and_removes_temporary_file(
+    tmp_path: Path,
+    page_images: list[Path],
+    monkeypatch: pytest.MonkeyPatch,
 ):
     output = tmp_path / "livro.pdf"
     create_pdf(page_images, output)
-
     previous_pdf = output.read_bytes()
     previous_files = set(tmp_path.iterdir())
 

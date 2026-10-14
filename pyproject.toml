@@ -4,9 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scribd-to-pdf"
-version = "0.1.0"
+version = "0.2.0"
 description = "Aplicativo para reunir páginas de documentos do Scribd em um único PDF."
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.12"
 dependencies = [
     "playwright==1.63.0",
@@ -14,18 +15,18 @@ dependencies = [
     "pypdf==6.20.1",
 ]
 
-[project.scripts]
-scribd-to-pdf = "scribd_to_pdf.cli:main"
-scribd-to-pdf-gui = "scribd_to_pdf.gui:main"
-
-[tool.setuptools.packages.find]
-where = ["src"]
-
 [project.optional-dependencies]
 dev = [
     "pytest==9.1.1",
     "Pillow==12.3.0",
 ]
+
+[project.scripts]
+scribd-to-pdf = "scribd_to_pdf.ui.cli:main"
+scribd-to-pdf-gui = "scribd_to_pdf.ui.gui:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

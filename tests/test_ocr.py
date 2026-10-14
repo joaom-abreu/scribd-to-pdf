@@ -12,8 +12,10 @@ from unittest.mock import Mock
 import pytest
 from pypdf import PdfReader, PdfWriter
 
-from scribd_to_pdf import ocr as ocr_module
-from scribd_to_pdf.ocr import OcrError, add_ocr, check_ocr_available
+from scribd_to_pdf.infrastructure import ocr as ocr_module
+from scribd_to_pdf.infrastructure.ocr import OcrError, add_ocr, check_ocr_available
+
+FINISHED_PROCESS_STATES = {"Z", "X"}
 
 
 def write_pdf(path: Path, pages: int) -> None:
@@ -255,22 +257,20 @@ def test_cancel_before_replacement_preserves_pdf(pdf_path, monkeypatch):
     original = pdf_path.read_bytes()
     original_files = set(pdf_path.parent.iterdir())
     cancelled = threading.Event()
-    real_reader = ocr_module.PdfReader
+    real_count_pages = ocr_module.count_pages
 
     def success(command, **kwargs):
         write_pdf(Path(command[-1]), pages=2)
         return finished_process()
 
-    def read_and_cancel(stream):
-        reader = real_reader(stream)
-
-        if Path(stream.name).name == "searchable.pdf":
+    def count_and_cancel(path):
+        if path.name == "searchable.pdf":
             cancelled.set()
 
-        return reader
+        return real_count_pages(path)
 
     monkeypatch.setattr(ocr_module.subprocess, "Popen", success)
-    monkeypatch.setattr(ocr_module, "PdfReader", read_and_cancel)
+    monkeypatch.setattr(ocr_module, "count_pages", count_and_cancel)
 
     with pytest.raises(InterruptedError, match="preservado"):
         add_ocr(pdf_path, should_cancel=cancelled.is_set)
@@ -407,9 +407,7 @@ def test_cancel_stops_child_even_if_parent_exits_first(pdf_path, monkeypatch):
 
             state = data.rsplit(") ", 1)[1].split()[0]
 
-            # Z e X já encerraram a execução. O sistema também pode
-            # coletar o processo e remover /proc antes da leitura.
-            if state in {"Z", "X"}:
+            if state in FINISHED_PROCESS_STATES:
                 break
 
             if time.monotonic() >= stop_deadline:
@@ -418,11 +416,8 @@ def test_cancel_stops_child_even_if_parent_exits_first(pdf_path, monkeypatch):
                     f"Último estado: {state}."
                 )
 
-            # Enviar SIGKILL não garante que o filho já terminou
-            # quando o processo principal retorna.
             time.sleep(0.02)
     finally:
-        # Evita deixar o processo de teste ativo se houver uma regressão.
         try:
             os.kill(child_pid, signal.SIGKILL)
         except ProcessLookupError:
@@ -505,15 +500,15 @@ def test_cancel_while_validating_text_preserves_previous_files(
     original_pdf = pdf_path.read_bytes()
     original_files = set(pdf_path.parent.iterdir())
     cancelled = threading.Event()
-    real_open = Path.open
+    real_read_text = Path.read_text
 
-    def open_and_cancel(path, *args, **kwargs):
-        if path.name == "recognized.txt" and args and args[0] == "r":
+    def read_and_cancel(path, *args, **kwargs):
+        if path.name == "recognized.txt":
             cancelled.set()
 
-        return real_open(path, *args, **kwargs)
+        return real_read_text(path, *args, **kwargs)
 
-    monkeypatch.setattr(Path, "open", open_and_cancel)
+    monkeypatch.setattr(Path, "read_text", read_and_cancel)
     monkeypatch.setattr(
         ocr_module.subprocess, "Popen",
         lambda command, **kwargs: simulate_export(command, recognized),

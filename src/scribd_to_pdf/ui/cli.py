@@ -1,0 +1,128 @@
+import argparse
+from collections.abc import Sequence
+from pathlib import Path
+
+from playwright.sync_api import Error as PlaywrightError
+from pypdf.errors import PdfReadError
+
+from scribd_to_pdf.application.conversion import (
+    CaptureMode,
+    ConversionRequest,
+    ConversionResult,
+    Stage,
+    check_requirements,
+    convert,
+    resolve_output_path,
+)
+from scribd_to_pdf.domain.document import Document
+from scribd_to_pdf.domain.languages import DEFAULT_LANGUAGE, LANGUAGES
+from scribd_to_pdf.infrastructure.ocr import OcrError
+
+READY_PROMPT = (
+    "\nAguarde a capa carregar e feche o aviso de privacidade."
+    "\nPressione Enter para ativar Fullscreen e capturar..."
+)
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+
+    if args.export_text and not args.ocr:
+        parser.error("A opção --export-text exige --ocr.")
+
+    try:
+        result = _run(args)
+    except KeyboardInterrupt:
+        parser.exit(130, "\nOperação interrompida.\n")
+    except EOFError:
+        parser.exit(1, "\nEntrada encerrada antes de confirmar a captura.\n")
+    except (PlaywrightError, PdfReadError, ValueError, OSError, OcrError) as error:
+        parser.exit(1, f"Erro: {error}\n")
+
+    print(f"PDF salvo em: {result.pdf_path}")
+
+    if result.text_path is not None:
+        print(f"Texto salvo em: {result.text_path}")
+
+
+def _run(args: argparse.Namespace) -> ConversionResult:
+    document = Document.from_url(args.url)
+    request = ConversionRequest(
+        document=document,
+        output_path=resolve_output_path(document, args.output),
+        mode=_capture_mode(args),
+        ocr_language=args.ocr_language if args.ocr else None,
+        export_text=args.export_text,
+    )
+
+    check_requirements(request)
+    return convert(request, on_progress=_print_progress, wait_for_ready=_wait_for_enter)
+
+
+def _capture_mode(args: argparse.Namespace) -> CaptureMode:
+    if args.reuse:
+        return CaptureMode.REUSE
+
+    return CaptureMode.RESUME if args.resume else CaptureMode.NEW
+
+
+def _print_progress(_: Stage, message: str) -> None:
+    print(message)
+
+
+def _wait_for_enter() -> None:
+    input(READY_PROMPT)
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="scribd-to-pdf",
+        description="Reúne páginas de um documento do Scribd em um PDF.",
+    )
+    parser.add_argument("url", help="URL do documento no Scribd.")
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        metavar="ARQUIVO",
+        help="Destino do PDF. Padrão: output/ID/ID.pdf.",
+    )
+
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument(
+        "--reuse",
+        action="store_true",
+        help="Gera o PDF usando uma captura completa já salva, sem abrir o navegador.",
+    )
+    modes.add_argument(
+        "--resume",
+        action="store_true",
+        help="Retoma uma captura incompleta, aproveitando as páginas já salvas.",
+    )
+
+    parser.add_argument(
+        "--ocr",
+        action="store_true",
+        help="Adiciona texto pesquisável e selecionável ao PDF.",
+    )
+    parser.add_argument(
+        "--ocr-language",
+        default=DEFAULT_LANGUAGE,
+        metavar="IDIOMA",
+        help=(
+            "Idioma do OCR: "
+            + ", ".join(f"{code} ({name.lower()})" for code, name in LANGUAGES.items())
+            + f". Combine idiomas com +, como por+eng. Padrão: {DEFAULT_LANGUAGE}."
+        ),
+    )
+    parser.add_argument(
+        "--export-text",
+        action="store_true",
+        help="Salva o texto reconhecido em um .txt ao lado do PDF. Exige --ocr.",
+    )
+    return parser
+
+
+if __name__ == "__main__":
+    main()

@@ -35,7 +35,7 @@ UI_FONT_SIZE = -28
 LOG_FONT_SIZE = -24
 LANGUAGE_COLUMNS = 3
 READY_MESSAGE = (
-    "No navegador, aguarde a capa e feche o aviso de privacidade.\n"
+    "No navegador, aguarde a capa e feche avisos que ainda cubram o documento.\n"
     "Depois, clique em Capturar páginas nesta janela."
 )
 

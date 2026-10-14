@@ -6,7 +6,9 @@ O OCR opcional reconhece o texto das imagens para permitir buscas, seleção e c
 
 ## Recursos
 
-- Captura das páginas com Chromium, controlado pelo Playwright.
+- Captura das páginas com Chromium, controlado pelo Playwright, com a interface do leitor em inglês.
+- Fechamento automático do aviso de privacidade, quando ele é reconhecido.
+- Até três tentativas para cada página que demora a carregar.
 - Geração de PDF a partir das imagens salvas.
 - Retomada de capturas interrompidas e reutilização de capturas completas.
 - OCR com um ou mais idiomas e verificação dos modelos instalados antes da captura.
@@ -124,7 +126,7 @@ scribd-to-pdf-gui
 3. Selecione o modo de captura na tabela abaixo.
 4. Para reconhecer o texto, marque **Adicionar texto pesquisável e selecionável (OCR)** e escolha os idiomas. Para gerar o TXT, marque também **Salvar também o texto reconhecido em .txt**.
 5. Clique em **Iniciar**.
-6. Quando o navegador abrir, aguarde a capa carregar e feche o aviso de privacidade ou outras janelas que cubram o documento.
+6. Quando o navegador abrir, aguarde a capa carregar. O aplicativo tenta fechar sozinho o aviso de privacidade; se ele ou outra janela continuar cobrindo o documento, feche-os.
 7. Volte à interface e clique em **Capturar páginas**. O aplicativo ativa o modo Fullscreen e começa a captura.
 8. Ao concluir, use **Abrir PDF** para ler o resultado ou **Abrir pasta** para acessar os arquivos, incluindo o TXT quando solicitado.
 
@@ -152,7 +154,7 @@ Capture as páginas e gere o PDF no destino padrão:
 scribd-to-pdf "LINK_DO_DOCUMENTO"
 ```
 
-Quando o navegador abrir, aguarde a capa carregar, feche o aviso de privacidade e pressione **Enter no terminal**. O aplicativo ativa o Fullscreen e inicia a captura.
+Quando o navegador abrir, aguarde a capa carregar, feche os avisos que ainda cobrirem o documento e pressione **Enter no terminal**. O aplicativo ativa o Fullscreen e inicia a captura.
 
 Escolha o destino e reconheça texto em português e inglês, salvando também o TXT:
 
@@ -237,7 +239,8 @@ Na primeira execução, o OCR e a exportação de texto estão desativados, com 
 | Erro ao importar `tkinter` | Instale o suporte a Tkinter para a versão de Python usada pelo ambiente virtual, conforme as instruções do seu sistema operacional. |
 | OCRmyPDF, Tesseract ou idioma não encontrado | Confira `ocrmypdf --version` e `tesseract --list-langs` no terminal usado para iniciar o aplicativo. Instale os comandos ou modelos indicados pelo erro. |
 | Captura salva não encontrada ou incompleta | Confira a pasta de capturas (ou a indicada em `--captures-dir`), as imagens e o `capture.json`. Use `--resume` para uma captura incompleta e `--reuse` somente depois de concluí-la. |
-| Captura não avança no leitor | Confira se a capa carregou e se há avisos sobre o documento. O código procura o botão **Fullscreen** e o contador de páginas em inglês; mudanças no leitor podem exigir ajuste nos seletores. |
+| Captura não avança no leitor | Confira se a capa carregou e se há avisos sobre o documento. O navegador é aberto em inglês para que o código encontre o botão **Fullscreen** e o contador de páginas; mudanças no leitor podem exigir ajuste nos seletores. |
+| Página demora a carregar | Cada página é tentada até três vezes, com pausas crescentes. Se ainda assim falhar, as páginas anteriores ficam salvas; use **Retomar captura** ou `--resume`. |
 | **Abrir PDF** ou **Abrir pasta** falha no Linux | Confira se `xdg-open` está disponível e se há um aplicativo associado a PDFs. |
 
 ## Desenvolvimento
@@ -249,7 +252,7 @@ python -m pip install -e ".[dev]"
 python -m pytest -q
 ```
 
-No Windows, use `.\.venv\Scripts\python.exe` no lugar de `python`. A suíte usa arquivos locais e simulações de navegador e OCR, sem acessar o Scribd.
+No Windows, use `.\.venv\Scripts\python.exe` no lugar de `python`. A suíte usa arquivos locais e simulações de navegador e OCR, sem acessar o Scribd. Os testes do leitor abrem páginas HTML locais no Chromium do Playwright e são ignorados quando ele não está instalado.
 
 O código segue a Clean Architecture: as dependências apontam para dentro, e a aplicação conhece apenas as interfaces que ela mesma define.
 

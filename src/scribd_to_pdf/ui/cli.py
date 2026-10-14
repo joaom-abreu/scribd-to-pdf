@@ -15,7 +15,7 @@ from scribd_to_pdf.domain.document import Document
 from scribd_to_pdf.domain.languages import DEFAULT_LANGUAGE, LANGUAGES
 
 READY_PROMPT = (
-    "\nAguarde a capa carregar e feche o aviso de privacidade."
+    "\nAguarde a capa carregar e feche avisos que ainda cubram o documento."
     "\nPressione Enter para ativar Fullscreen e capturar..."
 )
 

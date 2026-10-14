@@ -3,12 +3,15 @@ from unittest.mock import Mock
 
 import pytest
 from playwright.sync_api import Error as PlaywrightError
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+from playwright.sync_api import sync_playwright
 
 from scribd_to_pdf.application.errors import ConversionError
+from scribd_to_pdf.domain.capture import CaptureProgress
 from scribd_to_pdf.domain.document import Document
 from scribd_to_pdf.infrastructure import reader as reader_module
-from scribd_to_pdf.infrastructure.reader import PlaywrightPageCapturer
-from scribd_to_pdf.infrastructure.storage import FileCaptureRepository
+from scribd_to_pdf.infrastructure.reader import CAPTURE_ATTEMPTS, PlaywrightPageCapturer, ScribdReader
+from scribd_to_pdf.infrastructure.storage import CaptureStore, FileCaptureRepository
 
 DOCUMENT = Document("123", "https://www.scribd.com/document/123/livro")
 
@@ -57,3 +60,122 @@ def test_capturer_keeps_interruptions(tmp_path, monkeypatch):
         capture(tmp_path)
 
     assert error.value is interruption
+
+
+class FakeReader:
+    def __init__(self, timeouts: dict[int, int] | None = None) -> None:
+        self.timeouts = dict(timeouts or {})
+        self.captured: list[int] = []
+        self.pauses: list[int] = []
+
+    def capture(self, number: int, path: Path) -> None:
+        if self.timeouts.get(number, 0) > 0:
+            self.timeouts[number] -= 1
+            raise PlaywrightTimeoutError(f"Página {number} sem imagem.")
+
+        path.write_bytes(b"png")
+        self.captured.append(number)
+
+    def scroll_to(self, number: int) -> None:
+        pass
+
+    def pause(self, milliseconds: int) -> None:
+        self.pauses.append(milliseconds)
+
+
+@pytest.fixture
+def store(tmp_path) -> CaptureStore:
+    store = FileCaptureRepository(tmp_path).store(DOCUMENT)
+    store.directory.mkdir()
+    return store
+
+
+def capture_pages(reader: FakeReader, store: CaptureStore, total_pages: int, **options) -> list[str]:
+    messages: list[str] = []
+    reader_module._capture_pages(
+        reader,
+        store,
+        CaptureProgress(total_pages),
+        messages.append,
+        options.get("should_cancel", lambda: False),
+    )
+    return messages
+
+
+def test_slow_page_is_retried_with_growing_pauses(store):
+    reader = FakeReader({2: CAPTURE_ATTEMPTS - 1})
+
+    messages = capture_pages(reader, store, 3)
+
+    assert reader.captured == [1, 2, 3]
+    assert reader.pauses == [2_000, 4_000]
+    assert f"Tentativa {CAPTURE_ATTEMPTS} de {CAPTURE_ATTEMPTS}" in "\n".join(messages)
+    assert store.load_progress().is_complete
+
+
+def test_page_that_never_loads_keeps_previous_progress(store):
+    reader = FakeReader({2: CAPTURE_ATTEMPTS})
+
+    with pytest.raises(PlaywrightTimeoutError):
+        capture_pages(reader, store, 3)
+
+    assert reader.captured == [1]
+    assert store.load_progress().captured_pages == frozenset({1})
+
+
+def test_cancellation_stops_retries(store):
+    reader = FakeReader({1: CAPTURE_ATTEMPTS})
+    calls = iter([False, False, True])
+
+    with pytest.raises(InterruptedError):
+        capture_pages(reader, store, 1, should_cancel=lambda: next(calls))
+
+    assert reader.pauses == [2_000]
+
+
+@pytest.fixture(scope="module")
+def browser_page():
+    with sync_playwright() as playwright:
+        try:
+            browser = playwright.chromium.launch(headless=True)
+        except PlaywrightError as error:
+            pytest.skip(f"Chromium do Playwright indisponível: {error.message.splitlines()[0]}")
+
+        page = browser.new_page(locale=reader_module.READER_LOCALE)
+        yield page
+        browser.close()
+
+
+COUNTER = "<div><div><span>You are on page</span><span>{current}</span><span>{total}</span></div></div>"
+
+
+def test_counter_ignores_hidden_copies_and_nesting(browser_page):
+    browser_page.set_content(
+        f'<div style="display: none">{COUNTER.format(current=9, total=99)}</div>'
+        f"<header>{COUNTER.format(current=3, total=120)}</header>"
+    )
+
+    assert ScribdReader(browser_page).count_pages() == 120
+
+
+def test_counter_rejects_unexpected_values(browser_page):
+    browser_page.set_content(COUNTER.format(current=7, total=5))
+
+    with pytest.raises(ValueError, match="inválidos"):
+        ScribdReader(browser_page).count_pages()
+
+
+@pytest.mark.parametrize("label", ["Accept All", "I agree", "Got it"])
+def test_consent_banner_is_dismissed(browser_page, label):
+    browser_page.set_content(
+        f'<div id="banner"><button onclick="banner.remove()">{label}</button></div>'
+    )
+
+    assert ScribdReader(browser_page).dismiss_consent(timeout_ms=1_000)
+    assert browser_page.locator("#banner").count() == 0
+
+
+def test_missing_consent_banner_is_not_an_error(browser_page):
+    browser_page.set_content("<button>Fullscreen</button><button>Accept invitation</button>")
+
+    assert not ScribdReader(browser_page).dismiss_consent(timeout_ms=300)

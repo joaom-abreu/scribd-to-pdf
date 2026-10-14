@@ -23,7 +23,7 @@ READY_PROMPT = (
 def main(
     argv: Sequence[str] | None = None,
     *,
-    converter_factory: Callable[[], DocumentConverter] = build_converter,
+    converter_factory: Callable[[Path | None], DocumentConverter] = build_converter,
 ) -> None:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -32,7 +32,7 @@ def main(
         parser.error("A opção --export-text exige --ocr.")
 
     try:
-        result = _run(args, converter_factory())
+        result = _run(args, converter_factory(args.captures_dir))
     except KeyboardInterrupt:
         parser.exit(130, "\nOperação interrompida.\n")
     except EOFError:
@@ -86,7 +86,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "--output",
         type=Path,
         metavar="ARQUIVO",
-        help="Destino do PDF. Padrão: output/ID/ID.pdf.",
+        help="Destino do PDF. Padrão: ID.pdf na pasta atual.",
+    )
+    parser.add_argument(
+        "--captures-dir",
+        type=Path,
+        metavar="PASTA",
+        help=(
+            "Pasta onde as capturas são salvas e procuradas para --resume e --reuse. "
+            "Padrão: pasta de dados do usuário (veja o README)."
+        ),
     )
 
     modes = parser.add_mutually_exclusive_group()

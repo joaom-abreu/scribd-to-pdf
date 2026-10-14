@@ -1,13 +1,11 @@
 import json
-import os
-import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from scribd_to_pdf.domain.languages import DEFAULT_LANGUAGE, LANGUAGES
+from scribd_to_pdf.infrastructure.directories import user_config_directory
 from scribd_to_pdf.infrastructure.files import write_text_atomically
 
-APP_DIRECTORY = "scribd-to-pdf"
 FILE_NAME = "preferences.json"
 PRIVATE_DIRECTORY_MODE = 0o700
 
@@ -21,14 +19,7 @@ class Preferences:
 
 
 def get_preferences_path() -> Path:
-    if sys.platform == "win32":
-        base = _absolute_path_from_env("APPDATA") or Path.home() / "AppData" / "Roaming"
-    elif sys.platform == "darwin":
-        base = Path.home() / "Library" / "Application Support"
-    else:
-        base = _absolute_path_from_env("XDG_CONFIG_HOME") or Path.home() / ".config"
-
-    return base / APP_DIRECTORY / FILE_NAME
+    return user_config_directory() / FILE_NAME
 
 
 def load_preferences(path: Path | None = None) -> Preferences:
@@ -54,11 +45,6 @@ def save_preferences(preferences: Preferences, path: Path | None = None) -> None
         json.dumps(asdict(preferences), ensure_ascii=False, indent=2) + "\n",
         directory_mode=PRIVATE_DIRECTORY_MODE,
     )
-
-
-def _absolute_path_from_env(name: str) -> Path | None:
-    value = os.environ.get(name, "")
-    return Path(value) if value and Path(value).is_absolute() else None
 
 
 def _parse_folder(value: object) -> str:

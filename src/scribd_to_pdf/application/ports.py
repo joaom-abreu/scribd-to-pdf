@@ -10,8 +10,6 @@ ReadySignal = Callable[[], None]
 
 
 class CaptureRepository(Protocol):
-    def directory(self, document: Document) -> Path: ...
-
     def load_complete(self, document: Document) -> list[Path]: ...
 
 

@@ -14,15 +14,20 @@ URL = "https://www.scribd.com/document/123/livro"
 
 @pytest.fixture
 def converter(tmp_path):
-    real = DocumentConverter(FileCaptureRepository(), Mock(), Mock(), Mock())
+    real = DocumentConverter(FileCaptureRepository(tmp_path / "capturas"), Mock(), Mock(), Mock(), tmp_path / "pdfs")
     mock = Mock(wraps=real)
     mock.convert.return_value = ConversionResult(tmp_path / "livro.pdf")
     return mock
 
 
 @pytest.fixture
-def cli(converter):
-    return partial(cli_module.main, converter_factory=lambda: converter)
+def converter_factory(converter):
+    return Mock(return_value=converter)
+
+
+@pytest.fixture
+def cli(converter_factory):
+    return partial(cli_module.main, converter_factory=converter_factory)
 
 
 @pytest.fixture
@@ -79,10 +84,17 @@ def test_builds_request_from_arguments(cli, convert, check_requirements, capsys,
     assert ("Texto salvo em:" in messages) is export_text
 
 
-def test_default_output_uses_capture_folder(cli, convert, check_requirements):
+def test_default_output_uses_default_folder(cli, convert, check_requirements, tmp_path):
     cli([URL])
 
-    assert convert.call_args.args[0].output_path == Path("output") / "123" / "123.pdf"
+    assert convert.call_args.args[0].output_path == tmp_path / "pdfs" / "123.pdf"
+
+
+@pytest.mark.parametrize("arguments, captures_dir", [([], None), (["--captures-dir", "capturas"], Path("capturas"))])
+def test_captures_dir_is_passed_to_converter(cli, converter_factory, convert, check_requirements, arguments, captures_dir):
+    cli([URL, *arguments])
+
+    converter_factory.assert_called_once_with(captures_dir)
 
 
 def test_export_requires_ocr_before_anything_runs(cli, convert, check_requirements, capsys):

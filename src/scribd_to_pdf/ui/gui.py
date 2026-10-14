@@ -226,7 +226,7 @@ class Application:
         self._log("Cole o link, escolha o modo e clique em Iniciar.")
 
         if self.destination_folder is None:
-            self._log("Destino vazio usa output/ID/ID.pdf.")
+            self._log(f"Destino vazio salva ID.pdf em: {self.converter.default_output_folder}")
             return
 
         self._log(f"Pasta lembrada: {self.destination_folder}")

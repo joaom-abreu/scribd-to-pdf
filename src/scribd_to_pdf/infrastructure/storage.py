@@ -4,17 +4,22 @@ from pathlib import Path
 from scribd_to_pdf.application.errors import ConversionError
 from scribd_to_pdf.domain.capture import CaptureProgress
 from scribd_to_pdf.domain.document import Document
+from scribd_to_pdf.infrastructure.directories import user_data_directory
 from scribd_to_pdf.infrastructure.files import write_text_atomically
 
-CAPTURES_ROOT = Path("output")
+CAPTURES_DIRECTORY = "captures"
 MANIFEST_NAME = "capture.json"
 LEGACY_VERSION = 1
 MANIFEST_VERSION = 2
 INVALID_MANIFEST = "O registro da captura é inválido para este documento."
 
 
+def default_captures_root() -> Path:
+    return user_data_directory() / CAPTURES_DIRECTORY
+
+
 class CaptureStore:
-    def __init__(self, document: Document, root: Path = CAPTURES_ROOT) -> None:
+    def __init__(self, document: Document, root: Path) -> None:
         self.document = document
         self.directory = root / document.document_id
 
@@ -101,14 +106,11 @@ def _page_numbers(value: object) -> frozenset[int]:
 
 
 class FileCaptureRepository:
-    def __init__(self, root: Path = CAPTURES_ROOT) -> None:
+    def __init__(self, root: Path) -> None:
         self._root = root
 
     def store(self, document: Document) -> CaptureStore:
         return CaptureStore(document, self._root)
-
-    def directory(self, document: Document) -> Path:
-        return self.store(document).directory
 
     def load_complete(self, document: Document) -> list[Path]:
         try:

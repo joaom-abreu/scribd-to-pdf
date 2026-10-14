@@ -48,7 +48,9 @@ def variable(value: object) -> Mock:
 def application(monkeypatch):
     app = Application.__new__(Application)
     app.root = Mock()
-    app.converter = Mock(wraps=DocumentConverter(FileCaptureRepository(), Mock(), Mock(), Mock()))
+    app.converter = Mock(wraps=DocumentConverter(
+        FileCaptureRepository(Path("capturas")), Mock(), Mock(), Mock(), Path("pdfs"),
+    ))
     app.ui_calls = queue.Queue()
     app.ready_event = threading.Event()
     app.cancel_event = threading.Event()
@@ -158,7 +160,7 @@ def test_empty_destination_uses_document_id(application, thread, tmp_path, remem
 
     application._start()
 
-    expected = tmp_path / "pdfs" / "123.pdf" if remembered else Path("output") / "123" / "123.pdf"
+    expected = tmp_path / "pdfs" / "123.pdf" if remembered else Path("pdfs") / "123.pdf"
     assert started_request(thread).output_path == expected
     assert application.preferences.destination_folder == (str(tmp_path / "pdfs") if remembered else "")
 

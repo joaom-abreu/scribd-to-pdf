@@ -73,6 +73,7 @@ class DocumentConverter:
     capturer: PageCapturer
     pdf_builder: PdfBuilder
     text_recognizer: TextRecognizer
+    default_output_folder: Path
 
     def output_path(
         self,
@@ -83,7 +84,7 @@ class DocumentConverter:
         if destination is not None:
             return destination.expanduser()
 
-        directory = folder if folder is not None else self.captures.directory(document)
+        directory = folder if folder is not None else self.default_output_folder
         return directory / f"{document.document_id}.pdf"
 
     def check_requirements(self, request: ConversionRequest) -> None:

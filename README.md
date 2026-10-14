@@ -134,11 +134,11 @@ scribd-to-pdf-gui
 | **Retomar captura** | Continuar uma captura incompleta, aproveitando as páginas já salvas. |
 | **Usar captura completa** | Gerar o PDF a partir de todas as páginas já salvas, sem abrir o navegador. Também permite aplicar OCR novamente. |
 
-Em **Usar captura completa**, não há a etapa de confirmação no navegador. É preciso que a captura esteja completa e que suas imagens continuem na pasta `output/ID/`.
+Em **Usar captura completa**, não há a etapa de confirmação no navegador. É preciso que a captura esteja completa e que suas imagens continuem na [pasta de capturas](#arquivos-gerados).
 
 ### Destino e preferências
 
-Se o campo de destino estiver vazio, o aplicativo salva o PDF na pasta lembrada da execução anterior, usando o ID do documento como nome. Se nenhuma pasta tiver sido escolhida, usa `output/ID/ID.pdf`.
+Se o campo de destino estiver vazio, o aplicativo salva o PDF na pasta lembrada da execução anterior, usando o ID do documento como nome. Se nenhuma pasta tiver sido escolhida, salva `ID.pdf` na pasta de onde o aplicativo foi iniciado.
 
 A interface lembra a **pasta**, sem preencher novamente o nome do arquivo anterior. Também lembra se o OCR está ativado, os idiomas marcados e a opção de exportar texto. As escolhas são salvas ao selecionar um destino, iniciar uma conversão válida ou fechar a janela.
 
@@ -174,7 +174,8 @@ scribd-to-pdf "LINK_DO_DOCUMENTO" --reuse -o "livro.pdf" --ocr --ocr-language po
 
 | Opção | Comportamento |
 | --- | --- |
-| `-o ARQUIVO`, `--output ARQUIVO` | Define o destino do PDF. Padrão: `output/ID/ID.pdf`. Exige extensão `.pdf`. |
+| `-o ARQUIVO`, `--output ARQUIVO` | Define o destino do PDF. Padrão: `ID.pdf` na pasta atual. Exige extensão `.pdf`. |
+| `--captures-dir PASTA` | Define onde as capturas são salvas e procuradas por `--resume` e `--reuse`. Padrão: a pasta de capturas do sistema, descrita em [Arquivos gerados](#arquivos-gerados). |
 | `--resume` | Retoma uma captura incompleta. Abre o navegador e aguarda a confirmação. |
 | `--reuse` | Usa uma captura completa salva. Dispensa o navegador e o acesso ao Scribd. |
 | `--ocr` | Adiciona texto pesquisável e selecionável ao PDF. |
@@ -186,16 +187,26 @@ scribd-to-pdf "LINK_DO_DOCUMENTO" --reuse -o "livro.pdf" --ocr --ocr-language po
 
 ## Arquivos gerados
 
-`ID` é o número que aparece na URL do documento. As capturas ficam sempre em `output/ID/`, relativo à pasta de onde o aplicativo foi iniciado, mesmo quando o PDF é salvo em outro destino.
+`ID` é o número que aparece na URL do documento. As capturas ficam na pasta de dados do usuário, independentemente da pasta de onde o aplicativo é iniciado:
+
+| Sistema | Pasta de capturas |
+| --- | --- |
+| Linux | `~/.local/share/scribd-to-pdf/captures/`, ou `$XDG_DATA_HOME/scribd-to-pdf/captures/` quando essa variável aponta para um caminho absoluto. |
+| macOS | `~/Library/Application Support/scribd-to-pdf/captures/` |
+| Windows | `%LOCALAPPDATA%\scribd-to-pdf\captures\`, com fallback para `AppData\Local` na pasta do usuário. |
+
+No terminal, `--captures-dir PASTA` usa outra pasta no lugar dessa.
 
 | Arquivo | Conteúdo |
 | --- | --- |
-| `output/ID/page_0001.png`, `page_0002.png`, ... | Imagens das páginas, numeradas na ordem do documento. |
-| `output/ID/capture.json` | Registro do documento, do total de páginas e do progresso da captura. |
-| `output/ID/ID.pdf` ou o destino escolhido | PDF montado a partir das imagens, com texto pesquisável quando o OCR é concluído. |
+| `CAPTURAS/ID/page_0001.png`, `page_0002.png`, ... | Imagens das páginas, numeradas na ordem do documento. |
+| `CAPTURAS/ID/capture.json` | Registro do documento, do total de páginas e do progresso da captura. |
+| `ID.pdf` na pasta atual ou o destino escolhido | PDF montado a partir das imagens, com texto pesquisável quando o OCR é concluído. |
 | Mesmo destino e nome do PDF, com extensão `.txt` | Texto reconhecido pelo OCR, quando a exportação está ativada. Por exemplo: `livro.pdf` e `livro.txt`. |
 
-Mantenha as imagens e o `capture.json` para retomar ou reutilizar a captura. Execute o aplicativo na mesma pasta para que ele encontre esses arquivos.
+Mantenha as imagens e o `capture.json` para retomar ou reutilizar a captura.
+
+Versões anteriores salvavam as capturas em `output/`, dentro da pasta de execução. Para aproveitá-las, mova as pastas `output/ID/` para a pasta de capturas ou, no terminal, use `--captures-dir output` a partir da mesma pasta de antes.
 
 O TXT é salvo em UTF-8 usando a saída `--sidecar` do OCRmyPDF. Ele contém o texto reconhecido; revise possíveis erros de OCR antes de usar ou editar o conteúdo.
 
@@ -225,7 +236,7 @@ Na primeira execução, o OCR e a exportação de texto estão desativados, com 
 | Chromium não encontrado | Execute `python -m playwright install chromium` com o Python do ambiente virtual. No Windows, use `.\.venv\Scripts\python.exe -m playwright install chromium`. |
 | Erro ao importar `tkinter` | Instale o suporte a Tkinter para a versão de Python usada pelo ambiente virtual, conforme as instruções do seu sistema operacional. |
 | OCRmyPDF, Tesseract ou idioma não encontrado | Confira `ocrmypdf --version` e `tesseract --list-langs` no terminal usado para iniciar o aplicativo. Instale os comandos ou modelos indicados pelo erro. |
-| Captura salva não encontrada ou incompleta | Confira a pasta de execução, as imagens e o `capture.json`. Use `--resume` para uma captura incompleta e `--reuse` somente depois de concluí-la. |
+| Captura salva não encontrada ou incompleta | Confira a pasta de capturas (ou a indicada em `--captures-dir`), as imagens e o `capture.json`. Use `--resume` para uma captura incompleta e `--reuse` somente depois de concluí-la. |
 | Captura não avança no leitor | Confira se a capa carregou e se há avisos sobre o documento. O código procura o botão **Fullscreen** e o contador de páginas em inglês; mudanças no leitor podem exigir ajuste nos seletores. |
 | **Abrir PDF** ou **Abrir pasta** falha no Linux | Confira se `xdg-open` está disponível e se há um aplicativo associado a PDFs. |
 

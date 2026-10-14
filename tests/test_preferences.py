@@ -1,4 +1,5 @@
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -31,7 +32,7 @@ def test_preferences_path_uses_user_config_directory(
         setting,
         base_parts,
 ):
-    monkeypatch.setattr(preferences_module.sys, "platform", platform)
+    monkeypatch.setattr(sys, "platform", platform)
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
 
     if setting == "absolute":

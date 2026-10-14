@@ -93,6 +93,7 @@ class Application:
         self.mode = tk.StringVar(master=self.root, value=next(iter(MODES)))
         self.ocr_enabled = tk.BooleanVar(master=self.root, value=self.preferences.ocr_enabled)
         self.export_text = tk.BooleanVar(master=self.root, value=self.preferences.export_text)
+        self.compact = tk.BooleanVar(master=self.root, value=self.preferences.compact_pdf)
         self.ocr_languages = {
             code: tk.BooleanVar(master=self.root, value=code in self.preferences.ocr_languages)
             for code in LANGUAGES
@@ -124,6 +125,13 @@ class Application:
             style="App.TCombobox",
         )
         self.mode_box.pack(fill="x", pady=(8, 16))
+
+        self.compact_button = self._checkbutton(
+            frame,
+            "Compactar páginas com imagens (JPEG quando ficar menor)",
+            self.compact,
+        )
+        self.compact_button.pack(anchor="w", pady=(0, 8))
 
         self._build_ocr_controls(frame)
         self._build_actions(frame)
@@ -254,6 +262,7 @@ class Application:
             self.browse_button,
             self.start_button,
             self.ocr_button,
+            self.compact_button,
         ):
             widget.configure(state=_state(not running))
 
@@ -297,6 +306,7 @@ class Application:
             mode=MODES[self.mode.get()],
             ocr_language=ocr_language,
             export_text=ocr_language is not None and self.export_text.get(),
+            compact=self.compact.get(),
         )
 
     def _browse(self) -> None:
@@ -326,6 +336,7 @@ class Application:
                 ocr_enabled=self.ocr_enabled.get(),
                 ocr_languages=self._selected_languages(),
                 export_text=self.export_text.get(),
+                compact_pdf=self.compact.get(),
             )
             save_preferences(self.preferences)
         except (OSError, ValueError, RuntimeError) as error:
@@ -353,6 +364,9 @@ class Application:
     def _log_request(self, request: ConversionRequest) -> None:
         self._log(f"\nDocumento: {request.document.document_id}")
         self._log(f"Destino: {request.output_path}")
+
+        if request.compact:
+            self._log("Páginas: compactadas em JPEG quando ficam menores")
 
         if request.ocr_language is None:
             self._log("OCR: desativado")

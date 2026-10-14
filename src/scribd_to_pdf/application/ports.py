@@ -26,7 +26,7 @@ class PageCapturer(Protocol):
 
 
 class PdfBuilder(Protocol):
-    def build(self, image_paths: list[Path], output_path: Path) -> Path: ...
+    def build(self, image_paths: list[Path], output_path: Path, *, compact: bool) -> Path: ...
 
 
 class TextRecognizer(Protocol):

@@ -35,6 +35,7 @@ WIDGETS = (
     "open_pdf_button",
     "open_folder_button",
     "export_text_button",
+    "compact_button",
 )
 
 
@@ -64,6 +65,7 @@ def application(monkeypatch):
     app.mode = variable("Nova captura")
     app.ocr_enabled = variable(False)
     app.export_text = variable(False)
+    app.compact = variable(False)
     app.ocr_languages = {code: variable(code == "por") for code in LANGUAGES}
     app.ocr_language_buttons = []
     app._log = Mock()
@@ -186,6 +188,16 @@ def test_text_export_requires_ocr(application, thread, ocr_enabled):
 
     assert started_request(thread).export_text is ocr_enabled
     assert application.preferences.export_text is True
+
+
+def test_compact_choice_is_sent_and_remembered(application, thread):
+    application.compact.get.return_value = True
+
+    application._start()
+
+    assert started_request(thread).compact is True
+    assert application.preferences.compact_pdf is True
+    assert "compactadas" in logged(application)
 
 
 def test_save_failure_does_not_block_conversion(application, thread):

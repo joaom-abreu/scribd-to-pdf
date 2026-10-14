@@ -16,6 +16,7 @@ class Preferences:
     ocr_enabled: bool = False
     ocr_languages: tuple[str, ...] = (DEFAULT_LANGUAGE,)
     export_text: bool = False
+    compact_pdf: bool = False
 
 
 def get_preferences_path() -> Path:
@@ -36,6 +37,7 @@ def load_preferences(path: Path | None = None) -> Preferences:
         ocr_enabled=data.get("ocr_enabled") is True,
         ocr_languages=_parse_languages(data.get("ocr_languages")),
         export_text=data.get("export_text") is True,
+        compact_pdf=data.get("compact_pdf") is True,
     )
 
 

@@ -84,6 +84,13 @@ def test_builds_request_from_arguments(cli, convert, check_requirements, capsys,
     assert ("Texto salvo em:" in messages) is export_text
 
 
+@pytest.mark.parametrize("arguments, compact", [([], False), (["--compact"], True)])
+def test_compact_flag_reaches_request(cli, convert, check_requirements, arguments, compact):
+    cli([URL, *arguments])
+
+    assert convert.call_args.args[0].compact is compact
+
+
 def test_default_output_uses_default_folder(cli, convert, check_requirements, tmp_path):
     cli([URL])
 

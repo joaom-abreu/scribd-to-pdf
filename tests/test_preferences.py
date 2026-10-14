@@ -69,6 +69,7 @@ def test_preferences_survive_reload_from_another_working_directory(tmp_path, mon
         ocr_enabled=True,
         ocr_languages=("por", "eng", "fra"),
         export_text=True,
+        compact_pdf=True,
     )
     monkeypatch.setattr(preferences_module, "get_preferences_path", lambda: path)
 
@@ -100,6 +101,7 @@ def test_invalid_fields_are_filtered(tmp_path, selected, expected):
         "destination_folder": "relative/path",
         "ocr_enabled": "true",
         "export_text": "true",
+        "compact_pdf": 1,
         "ocr_languages": selected,
     }), encoding="utf-8")
 
@@ -149,4 +151,5 @@ def test_previous_preferences_format_loads_without_export_enabled(tmp_path):
         ocr_enabled=True,
         ocr_languages=("eng", "spa"),
         export_text=False,
+        compact_pdf=False,
     )

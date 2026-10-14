@@ -91,6 +91,16 @@ def test_capture_modes_use_the_browser(harness, tmp_path, mode, resume):
     assert harness.capturer.capture.call_args.kwargs["wait_for_ready"] is wait_for_ready
 
 
+@pytest.mark.parametrize("compact", [False, True])
+def test_compact_option_reaches_pdf_builder(harness, tmp_path, compact):
+    request = ConversionRequest(DOCUMENT, tmp_path / "livro.pdf", CaptureMode.REUSE, compact=compact)
+
+    _, progress = run(harness, request)
+
+    assert harness.pdf_builder.build.call_args.kwargs["compact"] is compact
+    assert ("PDF compacto" in progress[-1][1]) is compact
+
+
 def test_capture_status_is_reported_as_capture_stage(harness, tmp_path):
     def capture(document, *, on_status, **kwargs):
         on_status("Capturando página 1 de 2...")

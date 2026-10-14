@@ -54,6 +54,7 @@ def _run(args: argparse.Namespace, converter: DocumentConverter) -> ConversionRe
         mode=_capture_mode(args),
         ocr_language=args.ocr_language if args.ocr else None,
         export_text=args.export_text,
+        compact=args.compact,
     )
 
     converter.check_requirements(request)
@@ -110,6 +111,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Retoma uma captura incompleta, aproveitando as páginas já salvas.",
     )
 
+    parser.add_argument(
+        "--compact",
+        action="store_true",
+        help=(
+            "Usa JPEG nas páginas em que ele fica menor que o PNG, como digitalizações e "
+            "ilustrações. Páginas só com texto continuam em PNG."
+        ),
+    )
     parser.add_argument(
         "--ocr",
         action="store_true",

@@ -93,7 +93,50 @@ def test_builder_reports_failures_as_conversion_error(tmp_path: Path, page_image
     page_images[1].unlink()
 
     with pytest.raises(ConversionError, match="page_0002.png") as error:
-        Img2PdfBuilder().build(page_images, tmp_path / "livro.pdf")
+        Img2PdfBuilder().build(page_images, tmp_path / "livro.pdf", compact=False)
 
     assert isinstance(error.value.__cause__, FileNotFoundError)
     assert not (tmp_path / "livro.pdf").exists()
+
+
+def page_filters(path: Path) -> list[str]:
+    with path.open("rb") as stream:
+        return [
+            str(image.get_object()["/Filter"])
+            for page in PdfReader(stream).pages
+            for image in page["/Resources"]["/XObject"].values()
+        ]
+
+
+@pytest.fixture
+def mixed_pages(tmp_path: Path) -> list[Path]:
+    illustration = tmp_path / "page_0001.png"
+    text = tmp_path / "page_0002.png"
+
+    with Image.radial_gradient("L").resize((512, 512)) as gradient, \
+            Image.effect_noise((512, 512), 48) as noise:
+        Image.merge("RGB", (gradient, noise, gradient.transpose(Image.Transpose.ROTATE_90))).save(illustration)
+
+    with Image.new("RGB", (512, 512), color="white") as image:
+        image.paste((0, 0, 0), (40, 40, 470, 44))
+        image.save(text)
+
+    return [illustration, text]
+
+
+def test_compact_uses_jpeg_only_where_it_is_smaller(tmp_path: Path, mixed_pages: list[Path]):
+    regular = create_pdf(mixed_pages, tmp_path / "normal.pdf")
+    compact = create_pdf(mixed_pages, tmp_path / "compacto.pdf", compact=True)
+
+    assert page_filters(regular) == ["/FlateDecode", "/FlateDecode"]
+    assert page_filters(compact) == ["/DCTDecode", "/FlateDecode"]
+    assert compact.stat().st_size < regular.stat().st_size
+    assert count_pages(compact) == 2
+
+
+def test_compact_keeps_captured_images(tmp_path: Path, mixed_pages: list[Path]):
+    originals = [path.read_bytes() for path in mixed_pages]
+
+    Img2PdfBuilder().build(mixed_pages, tmp_path / "livro.pdf", compact=True)
+
+    assert [path.read_bytes() for path in mixed_pages] == originals

@@ -42,6 +42,7 @@ class ConversionRequest:
     mode: CaptureMode = CaptureMode.NEW
     ocr_language: str | None = None
     export_text: bool = False
+    compact: bool = False
 
     def __post_init__(self) -> None:
         if self.output_path.suffix.lower() != ".pdf":
@@ -102,8 +103,13 @@ class DocumentConverter:
         image_paths = self._collect_pages(request, on_progress, wait_for_ready, should_cancel)
         raise_if_cancelled(should_cancel, CONVERSION_INTERRUPTED)
 
-        on_progress(Stage.PDF, f"Gerando PDF com {len(image_paths)} páginas...")
-        pdf_path = self.pdf_builder.build(image_paths, request.output_path).resolve()
+        description = "PDF compacto" if request.compact else "PDF"
+        on_progress(Stage.PDF, f"Gerando {description} com {len(image_paths)} páginas...")
+        pdf_path = self.pdf_builder.build(
+            image_paths,
+            request.output_path,
+            compact=request.compact,
+        ).resolve()
 
         if request.ocr_language is None:
             return ConversionResult(pdf_path)

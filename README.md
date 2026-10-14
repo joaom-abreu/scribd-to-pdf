@@ -10,12 +10,13 @@ O OCR opcional reconhece o texto das imagens para permitir buscas, seleção e c
 - Fechamento automático do aviso de privacidade, quando ele é reconhecido.
 - Até três tentativas para cada página que demora a carregar.
 - Geração de PDF a partir das imagens salvas.
+- PDF compacto opcional: JPEG nas páginas em que ele fica menor que o PNG, como digitalizações e ilustrações; páginas só com texto continuam em PNG, sem perda de nitidez.
 - Retomada de capturas interrompidas e reutilização de capturas completas.
 - OCR com um ou mais idiomas e verificação dos modelos instalados antes da captura.
 - Interrupção do OCR preservando o PDF com as imagens.
 - Exportação do texto reconhecido para `.txt`.
 - Botões **Abrir PDF** e **Abrir pasta** na interface gráfica.
-- Preferências da interface salvas entre execuções: pasta de destino, OCR, idiomas e exportação de texto.
+- Preferências da interface salvas entre execuções: pasta de destino, compactação, OCR, idiomas e exportação de texto.
 
 ## Requisitos
 
@@ -124,17 +125,18 @@ scribd-to-pdf-gui
 1. Cole o link HTTPS do documento no campo **Link do documento**.
 2. Se quiser escolher o nome e o destino do PDF, clique em **Escolher...**. O arquivo deve ter a extensão `.pdf`.
 3. Selecione o modo de captura na tabela abaixo.
-4. Para reconhecer o texto, marque **Adicionar texto pesquisável e selecionável (OCR)** e escolha os idiomas. Para gerar o TXT, marque também **Salvar também o texto reconhecido em .txt**.
-5. Clique em **Iniciar**.
-6. Quando o navegador abrir, aguarde a capa carregar. O aplicativo tenta fechar sozinho o aviso de privacidade; se ele ou outra janela continuar cobrindo o documento, feche-os.
-7. Volte à interface e clique em **Capturar páginas**. O aplicativo ativa o modo Fullscreen e começa a captura.
-8. Ao concluir, use **Abrir PDF** para ler o resultado ou **Abrir pasta** para acessar os arquivos, incluindo o TXT quando solicitado.
+4. Para um PDF menor, marque **Compactar páginas com imagens (JPEG quando ficar menor)**.
+5. Para reconhecer o texto, marque **Adicionar texto pesquisável e selecionável (OCR)** e escolha os idiomas. Para gerar o TXT, marque também **Salvar também o texto reconhecido em .txt**.
+6. Clique em **Iniciar**.
+7. Quando o navegador abrir, aguarde a capa carregar. O aplicativo tenta fechar sozinho o aviso de privacidade; se ele ou outra janela continuar cobrindo o documento, feche-os.
+8. Volte à interface e clique em **Capturar páginas**. O aplicativo ativa o modo Fullscreen e começa a captura.
+9. Ao concluir, use **Abrir PDF** para ler o resultado ou **Abrir pasta** para acessar os arquivos, incluindo o TXT quando solicitado.
 
 | Modo | Quando usar |
 | --- | --- |
 | **Nova captura** | Capturar novamente todas as páginas do documento. |
 | **Retomar captura** | Continuar uma captura incompleta, aproveitando as páginas já salvas. |
-| **Usar captura completa** | Gerar o PDF a partir de todas as páginas já salvas, sem abrir o navegador. Também permite aplicar OCR novamente. |
+| **Usar captura completa** | Gerar o PDF a partir de todas as páginas já salvas, sem abrir o navegador. Também permite gerar uma versão compacta ou aplicar OCR novamente. |
 
 Em **Usar captura completa**, não há a etapa de confirmação no navegador. É preciso que a captura esteja completa e que suas imagens continuem na [pasta de capturas](#arquivos-gerados).
 
@@ -142,7 +144,7 @@ Em **Usar captura completa**, não há a etapa de confirmação no navegador. É
 
 Se o campo de destino estiver vazio, o aplicativo salva o PDF na pasta lembrada da execução anterior, usando o ID do documento como nome. Se nenhuma pasta tiver sido escolhida, salva `ID.pdf` na pasta de onde o aplicativo foi iniciado.
 
-A interface lembra a **pasta**, sem preencher novamente o nome do arquivo anterior. Também lembra se o OCR está ativado, os idiomas marcados e a opção de exportar texto. As escolhas são salvas ao selecionar um destino, iniciar uma conversão válida ou fechar a janela.
+A interface lembra a **pasta**, sem preencher novamente o nome do arquivo anterior. Também lembra a compactação, se o OCR está ativado, os idiomas marcados e a opção de exportar texto. As escolhas são salvas ao selecionar um destino, iniciar uma conversão válida ou fechar a janela.
 
 ## Usar pelo terminal
 
@@ -174,6 +176,14 @@ Gere novamente o PDF e aplique OCR a uma captura completa, sem abrir o navegador
 scribd-to-pdf "LINK_DO_DOCUMENTO" --reuse -o "livro.pdf" --ocr --ocr-language por+eng --export-text
 ```
 
+Gere uma versão menor a partir da mesma captura:
+
+```bash
+scribd-to-pdf "LINK_DO_DOCUMENTO" --reuse -o "livro-compacto.pdf" --compact
+```
+
+As capturas são PNG sem perdas. Em páginas com fotos, digitalizações ou fundos ilustrados, o JPEG costuma reduzir muito o arquivo; em páginas só com texto, o PNG costuma ser menor e mais nítido. Por isso, `--compact` escolhe o formato página por página.
+
 | Opção | Comportamento |
 | --- | --- |
 | `-o ARQUIVO`, `--output ARQUIVO` | Define o destino do PDF. Padrão: `ID.pdf` na pasta atual. Exige extensão `.pdf`. |
@@ -183,6 +193,7 @@ scribd-to-pdf "LINK_DO_DOCUMENTO" --reuse -o "livro.pdf" --ocr --ocr-language po
 | `--ocr` | Adiciona texto pesquisável e selecionável ao PDF. |
 | `--ocr-language IDIOMA` | Escolhe o idioma do OCR. Padrão: `por`. Aceita combinações, como `por+eng`. |
 | `--export-text` | Salva o texto reconhecido em um `.txt` ao lado do PDF. Exige `--ocr`. |
+| `--compact` | Usa JPEG (qualidade 85) nas páginas em que ele fica menor que o PNG. As capturas originais não mudam. |
 | `-h`, `--help` | Mostra a ajuda. |
 
 `--resume` e `--reuse` são mutuamente exclusivos. No terminal, os parâmetros são definidos em cada comando; as preferências salvas pela interface gráfica não são aplicadas.

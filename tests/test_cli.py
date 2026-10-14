@@ -41,8 +41,8 @@ def test_missing_language_stops_before_capture(monkeypatch, capsys, mode):
     assert "fra" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("ocr_enabled", [False, True])
-def test_cli_checks_languages_only_with_ocr(monkeypatch, tmp_path, ocr_enabled):
+@pytest.mark.parametrize("ocr_enabled, export_text", [(False, False), (True, False), (True, True)])
+def test_cli_checks_languages_only_with_ocr(monkeypatch, tmp_path, capsys, ocr_enabled, export_text):
     output = tmp_path / "livro.pdf"
     check = Mock(return_value="ocrmypdf")
     capture = Mock(return_value=[Path("page_0001.png")])
@@ -57,6 +57,9 @@ def test_cli_checks_languages_only_with_ocr(monkeypatch, tmp_path, ocr_enabled):
     if ocr_enabled:
         arguments.append("--ocr")
 
+    if export_text:
+        arguments.append("--export-text")
+
     monkeypatch.setattr(sys, "argv", arguments)
 
     cli_module.main()
@@ -66,7 +69,29 @@ def test_cli_checks_languages_only_with_ocr(monkeypatch, tmp_path, ocr_enabled):
 
     if ocr_enabled:
         check.assert_called_once_with("por+eng")
-        add_ocr.assert_called_once_with(output, language="por+eng")
+        add_ocr.assert_called_once_with(output, language="por+eng", export_text=export_text)
     else:
         check.assert_not_called()
         add_ocr.assert_not_called()
+
+    messages = capsys.readouterr().out
+    assert ("Texto salvo em:" in messages) == export_text
+
+    if export_text:
+        assert str(output.with_suffix(".txt")) in messages
+
+
+def test_export_requires_ocr_before_capture(monkeypatch, capsys):
+    capture = Mock()
+    check = Mock()
+    monkeypatch.setattr(cli_module, "inspect_document", capture)
+    monkeypatch.setattr(cli_module, "check_ocr_available", check)
+    monkeypatch.setattr(sys, "argv", ["scribd-to-pdf", URL, "--export-text"])
+
+    with pytest.raises(SystemExit) as error:
+        cli_module.main()
+
+    assert error.value.code == 2
+    assert "--export-text exige --ocr" in capsys.readouterr().err
+    capture.assert_not_called()
+    check.assert_not_called()

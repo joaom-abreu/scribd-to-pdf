@@ -64,7 +64,16 @@ def main() -> None:
         ),
     )
 
+    parser.add_argument(
+        "--export-text",
+        action="store_true",
+        help="Salva o texto reconhecido em um .txt ao lado do PDF. Exige --ocr.",
+    )
+
     args = parser.parse_args()
+
+    if args.export_text and not args.ocr:
+        parser.error("A opção --export-text exige --ocr.")
 
     try:
         document = parse_document_url(args.url)
@@ -99,9 +108,13 @@ def main() -> None:
             add_ocr(
                 output_path,
                 language=args.ocr_language,
+                export_text=args.export_text,
             )
 
         print(f"PDF salvo em: {output_path.resolve()}")
+
+        if args.export_text:
+            print(f"Texto salvo em: {output_path.resolve().with_suffix('.txt')}")
 
     except KeyboardInterrupt:
         parser.exit(130, "\nOperação interrompida.\n")

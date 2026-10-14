@@ -4,7 +4,7 @@ import signal
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 
 from pypdf import PdfReader
 from pypdf.errors import PdfReadError
@@ -197,11 +197,77 @@ def _run_ocr(
         raise subprocess.CalledProcessError(returncode, command)
 
 
+def _publish_ocr_outputs(
+        temporary_pdf: Path,
+        pdf_path: Path,
+        temporary_text: Path | None,
+        should_cancel: Callable[[], bool] | None,
+) -> None:
+    if temporary_text is None:
+        _check_cancelled(should_cancel)
+        temporary_pdf.replace(pdf_path)
+        return
+
+    text_path = pdf_path.with_suffix(".txt")
+    backup: Path | None = None
+
+    try:
+        if text_path.exists():
+            with NamedTemporaryFile(
+                dir=text_path.parent,
+                prefix=f".{text_path.name}.",
+                suffix=".bak",
+                delete=False,
+            ) as stream:
+                backup = Path(stream.name)
+
+            shutil.copy2(text_path, backup)
+
+        _check_cancelled(should_cancel)
+        temporary_text.replace(text_path)
+    except BaseException:
+        if backup is not None:
+            backup.unlink(missing_ok=True)
+        raise
+
+    try:
+        temporary_pdf.replace(pdf_path)
+    except BaseException:
+        try:
+            if backup is not None:
+                backup.replace(text_path)
+            else:
+                text_path.unlink(missing_ok=True)
+        except OSError as error:
+            if backup is not None:
+                raise OcrError(
+                    "O PDF anterior foi preservado, mas não foi possível "
+                    "restaurar o TXT. O texto anterior está guardado em: "
+                    f"{backup}"
+                ) from error
+
+            raise OcrError(
+                "O PDF anterior foi preservado, mas não foi possível "
+                f"remover o novo TXT: {text_path}"
+            ) from error
+
+        raise
+
+    if backup is not None:
+        try:
+            backup.unlink(missing_ok=True)
+        except OSError:
+            # PDF e TXT já foram salvos; uma falha na limpeza do backup
+            # não deve transformar o resultado completo em erro.
+            pass
+
+
 def add_ocr(
         pdf_path: Path,
         language: str = "por",
         *,
         should_cancel: Callable[[], bool] | None = None,
+        export_text: bool = False,
 ) -> Path:
     _check_cancelled(should_cancel)
     language = _normalize_language(language)
@@ -214,15 +280,19 @@ def add_ocr(
 
     with TemporaryDirectory(prefix="ocr-", dir=pdf_path.parent) as directory:
         temporary_path = Path(directory) / "searchable.pdf"
+        temporary_text = Path(directory) / "recognized.txt" if export_text else None
 
         command = [
             executable,
             "--language", language,
             "--output-type", "pdf",
             "--optimize", "0",
-            str(pdf_path),
-            str(temporary_path),
         ]
+
+        if temporary_text is not None:
+            command.extend(["--sidecar", str(temporary_text)])
+
+        command.extend([str(pdf_path), str(temporary_path)])
 
         try:
             _run_ocr(command, should_cancel)
@@ -249,7 +319,29 @@ def add_ocr(
                 "O PDF anterior foi preservado."
             )
 
-        _check_cancelled(should_cancel)
-        temporary_path.replace(pdf_path)
+        if temporary_text is not None:
+            try:
+                with temporary_text.open("r", encoding="utf-8") as stream:
+                    for _ in stream:
+                        _check_cancelled(should_cancel)
+            except InterruptedError:
+                raise
+            except (OSError, UnicodeError) as error:
+                raise OcrError(
+                    "O OCR não gerou um TXT válido. "
+                    "O PDF e o TXT anteriores foram preservados."
+                ) from error
+
+        try:
+            _publish_ocr_outputs(
+                temporary_path, pdf_path, temporary_text, should_cancel,
+            )
+        except InterruptedError:
+            raise
+        except OSError as error:
+            raise OcrError(
+                "Não foi possível salvar o resultado do OCR. "
+                "O PDF anterior foi preservado."
+            ) from error
 
     return pdf_path

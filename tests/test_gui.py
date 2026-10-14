@@ -2,7 +2,7 @@ import queue
 import threading
 import tkinter as tk
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, create_autospec
 
 import pytest
 
@@ -28,6 +28,8 @@ def application(monkeypatch):
     app.destination_folder = None
     app.ocr_enabled = Mock()
     app.ocr_enabled.get.return_value = True
+    app.export_text = Mock()
+    app.export_text.get.return_value = False
     app.ocr_languages = {}
 
     for code in gui_module.OCR_LANGUAGES.values():
@@ -48,7 +50,7 @@ def application(monkeypatch):
     for name in (
         "url_entry", "destination_entry", "browse_button", "start_button",
         "ocr_button", "mode_box", "ready_button", "cancel_button",
-        "open_pdf_button", "open_folder_button",
+        "open_pdf_button", "open_folder_button", "export_text_button",
     ):
         setattr(app, name, Mock())
 
@@ -148,9 +150,10 @@ def test_worker_passes_cancellation_to_ocr(application, tmp_path, monkeypatch):
         pdf_path.write_bytes(b"PDF preservado")
         return pdf_path
 
-    def cancel_ocr(path, *, language, should_cancel):
+    def cancel_ocr(path, *, language, should_cancel, export_text=False):
         assert path == pdf_path
         assert language == "por+eng"
+        assert not export_text
         assert not should_cancel()
         application.cancel_event.set()
         assert should_cancel()
@@ -215,6 +218,7 @@ def test_close_saves_current_choices(application, tmp_path, running):
     selected_path = tmp_path / "livros" / "livro.pdf"
     application.destination.get.return_value = str(selected_path)
     application.ocr_enabled.get.return_value = False
+    application.export_text.get.return_value = True
 
     for code, variable in application.ocr_languages.items():
         variable.get.return_value = code in {"eng", "spa"}
@@ -225,6 +229,7 @@ def test_close_saves_current_choices(application, tmp_path, running):
         destination_folder=str(selected_path.parent.resolve()),
         ocr_enabled=False,
         ocr_languages=("eng", "spa"),
+        export_text=True,
     )
     gui_module.save_preferences.assert_called_once_with(expected)
 
@@ -268,3 +273,95 @@ def test_browse_reuses_folder_and_remembers_selection(application, tmp_path, mon
     assert application.destination.get() == str(selected_path)
     assert application.destination_folder == selected_path.parent.resolve()
     gui_module.save_preferences.assert_called_once()
+
+
+@pytest.mark.parametrize("ocr_enabled, running", [(False, False), (True, False), (True, True)])
+def test_text_export_control_requires_idle_ocr(application, ocr_enabled, running):
+    application.ocr_enabled.get.return_value = ocr_enabled
+    application.running = running
+
+    application._update_ocr_controls()
+
+    application.export_text_button.configure.assert_called_with(
+        state="normal" if ocr_enabled and not running else "disabled",
+    )
+
+
+@pytest.mark.parametrize("ocr_enabled", [False, True])
+def test_gui_start_exports_only_with_ocr(application, monkeypatch, ocr_enabled):
+    application.running = False
+    application.ocr_enabled.get.return_value = ocr_enabled
+    application.export_text.get.return_value = True
+    application._get_ocr_language = Mock(return_value="eng" if ocr_enabled else None)
+    monkeypatch.setattr(gui_module, "check_ocr_available", Mock(return_value="ocrmypdf"))
+    thread = Mock()
+    monkeypatch.setattr(gui_module.threading, "Thread", thread)
+
+    application._start()
+
+    assert thread.call_args.kwargs["args"][4] is ocr_enabled
+    assert application.preferences.export_text is True
+
+
+@pytest.mark.parametrize("export_text", [False, True])
+@pytest.mark.parametrize("cancelled", [False, True])
+@pytest.mark.parametrize("mode", [MODES[0], MODES[2]])
+def test_worker_reports_text_only_after_success(
+        application, tmp_path, monkeypatch, export_text, cancelled, mode,
+):
+    pdf_path = tmp_path / "livro.pdf"
+    text_path = pdf_path.with_suffix(".txt")
+    document = Document("123", "https://www.scribd.com/document/123/livro")
+    monkeypatch.setattr(gui_module, "load_capture", lambda *args: [Path("page.png")])
+    capture = create_autospec(
+        gui_module.inspect_document,
+        return_value=[Path("page.png")],
+    )
+    monkeypatch.setattr(gui_module, "inspect_document", capture)
+    showerror = Mock()
+    monkeypatch.setattr(gui_module.messagebox, "showerror", showerror)
+
+    def create_pdf(*args):
+        pdf_path.write_bytes(b"PDF preservado")
+        return pdf_path
+
+    def ocr(path, *, language, should_cancel, export_text):
+        assert language == "eng"
+
+        if cancelled:
+            application.cancel_event.set()
+            raise InterruptedError("OCR interrompido.")
+
+        if export_text:
+            text_path.write_text("Texto reconhecido.", encoding="utf-8")
+
+        return path
+
+    monkeypatch.setattr(gui_module, "create_pdf", create_pdf)
+    add_ocr = Mock(side_effect=ocr)
+    monkeypatch.setattr(gui_module, "add_ocr", add_ocr)
+
+    application._convert(document, pdf_path, mode, "eng", export_text)
+    application._poll()
+
+    assert add_ocr.call_args.kwargs["export_text"] is export_text
+    assert application.last_pdf == pdf_path.resolve()
+    messages = "\n".join(call.args[0] for call in application._log.call_args_list)
+    assert ("Texto salvo em:" in messages) == (export_text and not cancelled)
+    assert pdf_path.is_file()
+    showerror.assert_not_called()
+
+    if mode == MODES[0]:
+        capture.assert_called_once()
+    else:
+        capture.assert_not_called()
+
+
+def test_text_saved_event_keeps_conversion_running(application, tmp_path):
+    text_path = tmp_path / "livro.txt"
+    application.events.put(("text_saved", str(text_path)))
+
+    application._poll()
+
+    assert application.running
+    application._log.assert_called_with(f"Texto salvo em: {text_path}")

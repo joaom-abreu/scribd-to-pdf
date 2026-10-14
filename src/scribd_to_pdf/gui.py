@@ -245,6 +245,10 @@ class Application:
             master=self.root,
             value=self.preferences.ocr_enabled,
         )
+        self.export_text = tk.BooleanVar(
+            master=self.root,
+            value=self.preferences.export_text,
+        )
 
         self.ocr_languages = {
             code: tk.BooleanVar(
@@ -293,10 +297,21 @@ class Application:
             )
             self.ocr_language_buttons.append(button)
 
+        self.export_text_button = ttk.Checkbutton(
+            area,
+            text="Salvar também o texto reconhecido em .txt",
+            variable=self.export_text,
+            style="App.TCheckbutton",
+        )
+        self.export_text_button.pack(anchor="w", pady=(4, 0))
+
         self._update_ocr_controls()
 
     def _update_ocr_controls(self) -> None:
         enabled = self.ocr_enabled.get() and not self.running
+        self.export_text_button.configure(
+            state="normal" if enabled else "disabled"
+        )
 
         for button in self.ocr_language_buttons:
             button.configure(
@@ -418,6 +433,7 @@ class Application:
                     for code, variable in self.ocr_languages.items()
                     if variable.get()
                 ),
+                export_text=self.export_text.get(),
             )
             save_preferences(preferences)
             self.preferences = preferences
@@ -449,6 +465,7 @@ class Application:
                 )
 
             ocr_language = self._get_ocr_language()
+            export_text = ocr_language is not None and self.export_text.get()
 
             if ocr_language is not None:
                 check_ocr_available(ocr_language)
@@ -481,9 +498,12 @@ class Application:
         else:
             self._log("OCR: desativado")
 
+        if export_text:
+            self._log(f"Texto: {output_path.with_suffix('.txt')}")
+
         threading.Thread(
             target=self._convert,
-            args=(document, output_path, mode, ocr_language),
+            args=(document, output_path, mode, ocr_language, export_text),
             daemon=False,
         ).start()
 
@@ -534,6 +554,7 @@ class Application:
             output_path: Path,
             mode: str,
             ocr_language: str | None = None,
+            export_text: bool = False,
     ) -> None:
         pdf_path: Path | None = None
 
@@ -571,7 +592,14 @@ class Application:
                     pdf_path,
                     language=ocr_language,
                     should_cancel=self.cancel_event.is_set,
+                    export_text=export_text,
                 )
+
+                if export_text:
+                    self.events.put((
+                        "text_saved",
+                        str(pdf_path.resolve().with_suffix(".txt")),
+                    ))
 
             self.events.put(("done", str(pdf_path.resolve())))
 
@@ -614,6 +642,9 @@ class Application:
 
                 if not self.cancel_event.is_set():
                     self.cancel_button.configure(state="normal")
+
+            elif kind == "text_saved":
+                self._log(f"Texto salvo em: {text}")
 
             elif kind == "open_error":
                 self._log(f"Falha ao abrir: {text}")

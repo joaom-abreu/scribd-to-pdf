@@ -280,12 +280,19 @@ def test_cancel_before_replacement_preserves_pdf(pdf_path, monkeypatch):
 
 
 @pytest.mark.parametrize("interrupt", [InterruptedError, KeyboardInterrupt])
+@pytest.mark.parametrize("export_text", [False, True])
 def test_interrupt_stops_running_process_and_preserves_pdf(
         pdf_path,
         monkeypatch,
         interrupt,
+        export_text,
 ):
     original = pdf_path.read_bytes()
+    text_path = pdf_path.with_suffix(".txt")
+
+    if export_text:
+        text_path.write_text("Texto anterior.", encoding="utf-8")
+
     marker = pdf_path.parent / "started.txt"
     processes = []
     real_popen = subprocess.Popen
@@ -303,6 +310,11 @@ def test_interrupt_stops_running_process_and_preserves_pdf(
     def start(command, **kwargs):
         if command[0] != "ocrmypdf":
             return real_popen(command, **kwargs)
+
+        if "--sidecar" in command:
+            Path(command[command.index("--sidecar") + 1]).write_text(
+                "Texto parcial.", encoding="utf-8",
+            )
 
         process = real_popen(
             [sys.executable, "-c", script, command[-1], str(marker)],
@@ -323,11 +335,13 @@ def test_interrupt_stops_running_process_and_preserves_pdf(
     monkeypatch.setattr(ocr_module.subprocess, "Popen", start)
 
     with pytest.raises(interrupt):
-        add_ocr(pdf_path, should_cancel=should_cancel)
+        add_ocr(pdf_path, should_cancel=should_cancel, export_text=export_text)
 
     assert marker.exists(), "O processo de teste não chegou a iniciar."
     assert processes[0].poll() is not None
     assert pdf_path.read_bytes() == original
+    if export_text:
+        assert text_path.read_text(encoding="utf-8") == "Texto anterior."
     assert not list(pdf_path.parent.glob("ocr-*"))
 
 
@@ -416,3 +430,151 @@ def test_cancel_stops_child_even_if_parent_exits_first(pdf_path, monkeypatch):
 
     assert pdf_path.read_bytes() == original
     assert not list(pdf_path.parent.glob("ocr-*"))
+
+
+def simulate_export(command, text: str = "Texto reconhecido."):
+    write_pdf(Path(command[-1]), pages=2)
+    text_path = Path(command[command.index("--sidecar") + 1])
+    text_path.write_text(text, encoding="utf-8")
+    return finished_process()
+
+
+@pytest.mark.parametrize(
+    "previous, recognized",
+    [(None, "Ação, francês e português.\n\fPágina 2."), ("Texto antigo.", "Texto novo."), (None, "")],
+)
+def test_export_saves_txt_next_to_pdf(pdf_path, monkeypatch, previous, recognized):
+    text_path = pdf_path.with_suffix(".txt")
+
+    if previous is not None:
+        text_path.write_text(previous, encoding="utf-8")
+
+    monkeypatch.setattr(
+        ocr_module.subprocess, "Popen",
+        lambda command, **kwargs: simulate_export(command, recognized),
+    )
+
+    assert add_ocr(pdf_path, export_text=True) == pdf_path.resolve()
+    assert text_path.read_text(encoding="utf-8") == recognized
+    assert len(PdfReader(pdf_path).pages) == 2
+    assert set(pdf_path.parent.iterdir()) == {pdf_path, text_path}
+
+
+@pytest.mark.parametrize(
+    "failure",
+    ["missing_text", "invalid_encoding", "failed", "corrupt_pdf", "missing_page"],
+)
+def test_invalid_export_preserves_previous_files(pdf_path, monkeypatch, failure):
+    text_path = pdf_path.with_suffix(".txt")
+    text_path.write_text("Texto anterior.", encoding="utf-8")
+    original_pdf = pdf_path.read_bytes()
+    original_text = text_path.read_bytes()
+    original_files = set(pdf_path.parent.iterdir())
+
+    def start(command, **kwargs):
+        simulate_export(command)
+        temporary_text = Path(command[command.index("--sidecar") + 1])
+
+        if failure == "missing_text":
+            temporary_text.unlink()
+        elif failure == "invalid_encoding":
+            temporary_text.write_bytes(b"\xff")
+        elif failure == "corrupt_pdf":
+            Path(command[-1]).write_bytes(b"not a PDF")
+        elif failure == "missing_page":
+            write_pdf(Path(command[-1]), pages=1)
+
+        return finished_process(1 if failure == "failed" else 0)
+
+    monkeypatch.setattr(ocr_module.subprocess, "Popen", start)
+
+    with pytest.raises(OcrError):
+        add_ocr(pdf_path, export_text=True)
+
+    assert pdf_path.read_bytes() == original_pdf
+    assert text_path.read_bytes() == original_text
+    assert set(pdf_path.parent.iterdir()) == original_files
+
+
+@pytest.mark.parametrize("recognized", ["Texto novo.", ""])
+def test_cancel_while_validating_text_preserves_previous_files(
+        pdf_path, monkeypatch, recognized,
+):
+    text_path = pdf_path.with_suffix(".txt")
+    text_path.write_text("Texto anterior.", encoding="utf-8")
+    original_pdf = pdf_path.read_bytes()
+    original_files = set(pdf_path.parent.iterdir())
+    cancelled = threading.Event()
+    real_open = Path.open
+
+    def open_and_cancel(path, *args, **kwargs):
+        if path.name == "recognized.txt" and args and args[0] == "r":
+            cancelled.set()
+
+        return real_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", open_and_cancel)
+    monkeypatch.setattr(
+        ocr_module.subprocess, "Popen",
+        lambda command, **kwargs: simulate_export(command, recognized),
+    )
+
+    with pytest.raises(InterruptedError):
+        add_ocr(pdf_path, export_text=True, should_cancel=cancelled.is_set)
+
+    assert pdf_path.read_bytes() == original_pdf
+    assert text_path.read_text(encoding="utf-8") == "Texto anterior."
+    assert set(pdf_path.parent.iterdir()) == original_files
+
+
+@pytest.mark.parametrize("previous_text", [False, True])
+@pytest.mark.parametrize("failed_output", ["recognized.txt", "searchable.pdf"])
+def test_publish_failure_restores_previous_files(
+        pdf_path, monkeypatch, previous_text, failed_output,
+):
+    text_path = pdf_path.with_suffix(".txt")
+
+    if previous_text:
+        text_path.write_text("Texto anterior.", encoding="utf-8")
+
+    original_pdf = pdf_path.read_bytes()
+    original_files = set(pdf_path.parent.iterdir())
+    real_replace = Path.replace
+
+    def fail_replace(path, target):
+        if path.name == failed_output:
+            raise PermissionError("Falha simulada ao salvar.")
+
+        return real_replace(path, target)
+
+    monkeypatch.setattr(Path, "replace", fail_replace)
+    monkeypatch.setattr(
+        ocr_module.subprocess, "Popen",
+        lambda command, **kwargs: simulate_export(command),
+    )
+
+    with pytest.raises(OcrError):
+        add_ocr(pdf_path, export_text=True)
+
+    assert pdf_path.read_bytes() == original_pdf
+    assert set(pdf_path.parent.iterdir()) == original_files
+
+    if previous_text:
+        assert text_path.read_text(encoding="utf-8") == "Texto anterior."
+
+
+def test_disabled_export_keeps_existing_text(pdf_path, monkeypatch):
+    text_path = pdf_path.with_suffix(".txt")
+    text_path.write_text("Texto editado pelo usuário.", encoding="utf-8")
+
+    def start(command, **kwargs):
+        assert "--sidecar" not in command
+        write_pdf(Path(command[-1]), pages=2)
+        return finished_process()
+
+    monkeypatch.setattr(ocr_module.subprocess, "Popen", start)
+
+    add_ocr(pdf_path, export_text=False)
+
+    assert text_path.read_text(encoding="utf-8") == "Texto editado pelo usuário."
+    assert set(pdf_path.parent.iterdir()) == {pdf_path, text_path}

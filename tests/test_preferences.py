@@ -67,6 +67,7 @@ def test_preferences_survive_reload_from_another_working_directory(tmp_path, mon
         destination_folder=str(tmp_path / "Leituras da mãe"),
         ocr_enabled=True,
         ocr_languages=("por", "eng", "fra"),
+        export_text=True,
     )
     monkeypatch.setattr(preferences_module, "get_preferences_path", lambda: path)
 
@@ -97,6 +98,7 @@ def test_invalid_fields_are_filtered(tmp_path, selected, expected):
     path.write_text(json.dumps({
         "destination_folder": "relative/path",
         "ocr_enabled": "true",
+        "export_text": "true",
         "ocr_languages": selected,
     }), encoding="utf-8")
 
@@ -130,3 +132,20 @@ def test_save_failure_keeps_previous_preferences_and_removes_temporary_file(
 
     assert path.read_bytes() == original
     assert set(path.parent.iterdir()) == {path}
+
+
+def test_previous_preferences_format_loads_without_export_enabled(tmp_path):
+    path = tmp_path / "preferences.json"
+    folder = str(tmp_path / "pdfs")
+    path.write_text(json.dumps({
+        "destination_folder": folder,
+        "ocr_enabled": True,
+        "ocr_languages": ["eng", "spa"],
+    }), encoding="utf-8")
+
+    assert load_preferences(path) == Preferences(
+        destination_folder=folder,
+        ocr_enabled=True,
+        ocr_languages=("eng", "spa"),
+        export_text=False,
+    )

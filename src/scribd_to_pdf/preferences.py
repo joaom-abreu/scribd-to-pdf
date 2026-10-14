@@ -14,6 +14,7 @@ class Preferences:
     destination_folder: str = ""
     ocr_enabled: bool = False
     ocr_languages: tuple[str, ...] = ("por",)
+    export_text: bool = False
 
 
 def get_preferences_path() -> Path:
@@ -77,10 +78,16 @@ def load_preferences(path: Path | None = None) -> Preferences:
     else:
         languages = ("por",)
 
+    export_text = data.get("export_text", False)
+
+    if not isinstance(export_text, bool):
+        export_text = False
+
     return Preferences(
         destination_folder=folder,
         ocr_enabled=enabled,
         ocr_languages=languages,
+        export_text=export_text,
     )
 
 

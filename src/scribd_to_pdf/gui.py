@@ -397,7 +397,7 @@ class Application:
             ocr_language = self._get_ocr_language()
 
             if ocr_language is not None:
-                check_ocr_available()
+                check_ocr_available(ocr_language)
 
         except (ValueError, OSError, RuntimeError) as error:
             messagebox.showerror(

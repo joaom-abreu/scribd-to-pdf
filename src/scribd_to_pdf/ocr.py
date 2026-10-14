@@ -14,13 +14,104 @@ class OcrError(RuntimeError):
     pass
 
 
-def check_ocr_available() -> str:
+LANGUAGE_NAMES = {
+    "por": "Português",
+    "eng": "Inglês",
+    "spa": "Espanhol",
+    "fra": "Francês",
+    "deu": "Alemão",
+}
+
+
+def _normalize_language(language: str) -> str:
+    parts = [part.strip() for part in language.split("+")]
+
+    if not all(parts):
+        raise ValueError(
+            "Informe um idioma válido, como por, eng, spa, fra, deu "
+            "ou uma combinação como por+eng."
+        )
+
+    return "+".join(parts)
+
+
+def _installed_languages() -> set[str]:
+    executable = shutil.which("tesseract")
+
+    if executable is None:
+        raise OcrError(
+            "O comando 'tesseract' não foi encontrado. "
+            "Instale o Tesseract e os modelos dos idiomas escolhidos."
+        )
+
+    try:
+        result = subprocess.run(
+            [executable, "--list-langs"],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=5,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise OcrError(
+            "A consulta dos idiomas do Tesseract demorou mais de 5 segundos. "
+            "Verifique a instalação com 'tesseract --list-langs'."
+        ) from error
+    except subprocess.CalledProcessError as error:
+        detail = (error.stderr or error.stdout or "").strip()
+        message = (
+            f"Não foi possível consultar os idiomas do Tesseract "
+            f"(código {error.returncode})."
+        )
+
+        if detail:
+            message += f"\n{detail}"
+
+        raise OcrError(message) from error
+    except OSError as error:
+        raise OcrError(
+            "Não foi possível executar o Tesseract. "
+            "Verifique a instalação com 'tesseract --list-langs'."
+        ) from error
+
+    return {
+        line.strip()
+        for line in result.stdout.splitlines()
+        if line.strip() and not line.strip().startswith("List of available languages")
+    }
+
+
+def check_ocr_available(language: str = "por") -> str:
+    language = _normalize_language(language)
     executable = shutil.which("ocrmypdf")
     if executable is None:
         raise OcrError(
             "O comando 'ocrmypdf' não foi encontrado. "
             "Instale OCRmyPDF e os idiomas do Tesseract; veja o README."
         )
+
+    installed = _installed_languages()
+    missing = sorted(set(language.split("+")) - installed)
+
+    if missing:
+        labels = [
+            f"{LANGUAGE_NAMES[code]} ({code})"
+            if code in LANGUAGE_NAMES
+            else code
+            for code in missing
+        ]
+        available = ", ".join(sorted(installed)) or "nenhum"
+
+        raise OcrError(
+            "Faltam modelos de idioma do Tesseract: "
+            + ", ".join(labels)
+            + f".\nIdiomas instalados: {available}.\n"
+            "Instale os modelos indicados ou selecione somente idiomas instalados. "
+            "Confira a instalação com 'tesseract --list-langs'."
+        )
+
     return executable
 
 
@@ -113,14 +204,8 @@ def add_ocr(
         should_cancel: Callable[[], bool] | None = None,
 ) -> Path:
     _check_cancelled(should_cancel)
-    executable = check_ocr_available()
-    language = language.strip()
-
-    if not language or any(not part.strip() for part in language.split("+")):
-        raise ValueError(
-            "Informe um idioma válido, como por, eng, spa, fra, deu "
-            "ou uma combinação como por+eng."
-        )
+    language = _normalize_language(language)
+    executable = check_ocr_available(language)
 
     pdf_path = pdf_path.resolve()
 

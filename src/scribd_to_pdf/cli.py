@@ -80,7 +80,7 @@ def main() -> None:
             raise ValueError("O arquivo de saída deve ter a extensão .pdf.")
 
         if args.ocr:
-            check_ocr_available()
+            check_ocr_available(args.ocr_language)
 
         if args.reuse:
             print("Reutilizando as páginas já capturadas...")

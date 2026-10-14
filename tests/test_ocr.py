@@ -7,12 +7,13 @@ import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 from pypdf import PdfReader, PdfWriter
 
 from scribd_to_pdf import ocr as ocr_module
-from scribd_to_pdf.ocr import OcrError, add_ocr
+from scribd_to_pdf.ocr import OcrError, add_ocr, check_ocr_available
 
 
 def write_pdf(path: Path, pages: int) -> None:
@@ -33,7 +34,7 @@ def pdf_path(tmp_path, monkeypatch):
     monkeypatch.setattr(
         ocr_module,
         "check_ocr_available",
-        lambda: "ocrmypdf",
+        lambda language="por": "ocrmypdf",
     )
 
     return path
@@ -41,6 +42,127 @@ def pdf_path(tmp_path, monkeypatch):
 
 def finished_process(returncode: int = 0):
     return SimpleNamespace(wait=lambda timeout=None: returncode)
+
+
+@pytest.fixture
+def installed_tools(monkeypatch):
+    monkeypatch.setattr(
+        ocr_module.shutil,
+        "which",
+        lambda command: f"/tools/{command}",
+    )
+    result = subprocess.CompletedProcess(
+        ["tesseract", "--list-langs"],
+        0,
+        stdout=(
+            'List of available languages in "/tessdata/" (5):\n'
+            "deu\neng\nfra\npor\nspa\n"
+        ),
+        stderr="",
+    )
+    run = Mock(return_value=result)
+    monkeypatch.setattr(ocr_module.subprocess, "run", run)
+    return run
+
+
+@pytest.mark.parametrize("language", ["por+eng+spa+fra+deu", " por + eng "])
+def test_accepts_installed_languages(language, installed_tools):
+    assert check_ocr_available(language) == "/tools/ocrmypdf"
+    assert installed_tools.call_args.args[0] == ["/tools/tesseract", "--list-langs"]
+
+
+def test_reports_all_missing_languages(installed_tools):
+    installed_tools.return_value.stdout = (
+        'List of available languages in "/tessdata/" (2):\n'
+        "eng\npor\n"
+    )
+
+    with pytest.raises(OcrError) as error:
+        check_ocr_available("por+fra+deu")
+
+    message = str(error.value)
+    assert "Francês (fra)" in message
+    assert "Alemão (deu)" in message
+    assert "Português (por)" not in message
+    assert "Idiomas instalados: eng, por" in message
+
+
+def test_reports_unknown_language(installed_tools):
+    with pytest.raises(OcrError, match="modelo_inexistente"):
+        check_ocr_available("modelo_inexistente")
+
+
+@pytest.mark.parametrize("language", ["", " ", "por+", "+eng", "por++eng"])
+def test_rejects_invalid_language_before_running_tesseract(language, installed_tools):
+    with pytest.raises(ValueError):
+        check_ocr_available(language)
+
+    installed_tools.assert_not_called()
+
+
+@pytest.mark.parametrize("missing", ["ocrmypdf", "tesseract"])
+def test_reports_missing_executable(missing, installed_tools, monkeypatch):
+    monkeypatch.setattr(
+        ocr_module.shutil,
+        "which",
+        lambda command: None if command == missing else f"/tools/{command}",
+    )
+
+    with pytest.raises(OcrError, match=missing):
+        check_ocr_available("por")
+
+    installed_tools.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        subprocess.TimeoutExpired(["tesseract", "--list-langs"], 5),
+        subprocess.CalledProcessError(
+            1,
+            ["tesseract", "--list-langs"],
+            stderr="Falha ao acessar tessdata.",
+        ),
+        FileNotFoundError("Tesseract indisponível."),
+    ],
+    ids=["timeout", "comando-falhou", "executavel-removido"],
+)
+def test_reports_language_query_failure(failure, installed_tools):
+    installed_tools.side_effect = failure
+
+    with pytest.raises(OcrError, match="Tesseract"):
+        check_ocr_available("por")
+
+
+def test_reports_empty_language_list(installed_tools):
+    installed_tools.return_value.stdout = (
+        'List of available languages in "/tessdata/" (0):\n'
+    )
+
+    with pytest.raises(OcrError, match="Idiomas instalados: nenhum"):
+        check_ocr_available("por")
+
+
+def test_missing_language_preserves_pdf_and_skips_ocr(
+        pdf_path,
+        installed_tools,
+        monkeypatch,
+):
+    original = pdf_path.read_bytes()
+    original_files = set(pdf_path.parent.iterdir())
+    installed_tools.return_value.stdout = (
+        'List of available languages in "/tessdata/" (1):\npor\n'
+    )
+    monkeypatch.setattr(ocr_module, "check_ocr_available", check_ocr_available)
+    popen = Mock()
+    monkeypatch.setattr(ocr_module.subprocess, "Popen", popen)
+
+    with pytest.raises(OcrError, match="Francês"):
+        add_ocr(pdf_path, language="por+fra")
+
+    popen.assert_not_called()
+    assert pdf_path.read_bytes() == original
+    assert set(pdf_path.parent.iterdir()) == original_files
 
 
 def test_failed_ocr_preserves_pdf(pdf_path, monkeypatch):

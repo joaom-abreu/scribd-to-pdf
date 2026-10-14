@@ -8,6 +8,7 @@ import pytest
 from scribd_to_pdf import gui as gui_module
 from scribd_to_pdf.gui import MODES, Application
 from scribd_to_pdf.models import Document
+from scribd_to_pdf.ocr import OcrError
 
 
 @pytest.fixture
@@ -24,6 +25,12 @@ def application():
     app.ocr_enabled = Mock()
     app.ocr_enabled.get.return_value = True
     app.ocr_language_buttons = []
+    app.url = Mock()
+    app.url.get.return_value = "https://www.scribd.com/document/123/livro"
+    app.destination = Mock()
+    app.destination.get.return_value = ""
+    app.mode = Mock()
+    app.mode.get.return_value = MODES[0]
     app._log = Mock()
 
     for name in (
@@ -72,6 +79,52 @@ def test_cancelled_ocr_keeps_pdf_accessible(application, tmp_path):
         "preservado" in call.args[0]
         for call in application._log.call_args_list
     )
+
+
+def test_missing_language_prevents_gui_start(application, tmp_path, monkeypatch):
+    application.running = False
+    previous_pdf = tmp_path / "anterior.pdf"
+    application.last_pdf = previous_pdf
+    application._get_ocr_language = Mock(return_value="por+fra")
+    check = Mock(side_effect=OcrError("Falta o modelo Francês (fra)."))
+    thread = Mock()
+    showerror = Mock()
+    monkeypatch.setattr(gui_module, "check_ocr_available", check)
+    monkeypatch.setattr(gui_module.threading, "Thread", thread)
+    monkeypatch.setattr(gui_module.messagebox, "showerror", showerror)
+
+    application._start()
+
+    check.assert_called_once_with("por+fra")
+    thread.assert_not_called()
+    assert not application.running
+    assert application.last_pdf == previous_pdf
+    assert "fra" in showerror.call_args.args[1]
+
+
+@pytest.mark.parametrize("language", [None, "por+eng"])
+def test_gui_preflight_runs_only_with_ocr(application, monkeypatch, language):
+    application.running = False
+    application.ocr_enabled.get.return_value = language is not None
+    application._get_ocr_language = Mock(return_value=language)
+    check = Mock(return_value="ocrmypdf")
+    thread = Mock()
+    showerror = Mock()
+    monkeypatch.setattr(gui_module, "check_ocr_available", check)
+    monkeypatch.setattr(gui_module.threading, "Thread", thread)
+    monkeypatch.setattr(gui_module.messagebox, "showerror", showerror)
+
+    application._start()
+
+    if language is None:
+        check.assert_not_called()
+    else:
+        check.assert_called_once_with(language)
+
+    assert application.running
+    thread.return_value.start.assert_called_once()
+    assert thread.call_args.kwargs["args"][3] == language
+    showerror.assert_not_called()
 
 
 def test_worker_passes_cancellation_to_ocr(application, tmp_path, monkeypatch):

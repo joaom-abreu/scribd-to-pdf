@@ -1,32 +1,39 @@
+from dataclasses import dataclass
 from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
 from PIL import Image
 
-from scribd_to_pdf.application import conversion as conversion_module
 from scribd_to_pdf.application.conversion import (
     CaptureMode,
     ConversionRequest,
     ConversionResult,
+    DocumentConverter,
     OcrInterrupted,
     Stage,
-    check_requirements,
-    convert,
-    resolve_output_path,
 )
 from scribd_to_pdf.domain.capture import CaptureProgress
 from scribd_to_pdf.domain.document import Document
-from scribd_to_pdf.infrastructure.pdf import count_pages
-from scribd_to_pdf.infrastructure.storage import CaptureStore
+from scribd_to_pdf.infrastructure.pdf import Img2PdfBuilder, count_pages
+from scribd_to_pdf.infrastructure.storage import CaptureStore, FileCaptureRepository
 
 DOCUMENT = Document("123", "https://www.scribd.com/document/123/livro")
 
 
+@dataclass(frozen=True)
+class Harness:
+    converter: DocumentConverter
+    store: CaptureStore
+    capturer: Mock
+    pdf_builder: Mock
+    text_recognizer: Mock
+
+
 @pytest.fixture
-def saved_capture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> CaptureStore:
-    monkeypatch.chdir(tmp_path)
-    store = CaptureStore(DOCUMENT)
+def harness(tmp_path: Path) -> Harness:
+    captures = FileCaptureRepository(tmp_path / "capturas")
+    store = captures.store(DOCUMENT)
     store.directory.mkdir(parents=True)
 
     for number in (1, 2):
@@ -34,48 +41,70 @@ def saved_capture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> CaptureSto
             image.save(store.page_path(number))
 
     store.save_progress(CaptureProgress(2, frozenset({1, 2})))
-    return store
+    capturer = Mock()
+    pdf_builder = Mock(wraps=Img2PdfBuilder())
+    text_recognizer = Mock()
+
+    return Harness(
+        DocumentConverter(captures, capturer, pdf_builder, text_recognizer),
+        store,
+        capturer,
+        pdf_builder,
+        text_recognizer,
+    )
 
 
-def run(request: ConversionRequest, **overrides) -> tuple[ConversionResult, list[tuple[Stage, str]]]:
+def run(
+        harness: Harness,
+        request: ConversionRequest,
+        **overrides,
+) -> tuple[ConversionResult, list[tuple[Stage, str]]]:
     progress: list[tuple[Stage, str]] = []
     options = {
         "on_progress": lambda stage, message: progress.append((stage, message)),
         "wait_for_ready": Mock(),
         **overrides,
     }
-    return convert(request, **options), progress
+    return harness.converter.convert(request, **options), progress
 
 
-def test_reuse_builds_pdf_without_opening_browser(saved_capture, tmp_path, monkeypatch):
-    capture = Mock()
-    monkeypatch.setattr(conversion_module, "capture_document", capture)
+def test_reuse_builds_pdf_without_opening_browser(harness, tmp_path):
     request = ConversionRequest(DOCUMENT, tmp_path / "livro.pdf", CaptureMode.REUSE)
 
-    result, progress = run(request)
+    result, progress = run(harness, request)
 
-    capture.assert_not_called()
+    harness.capturer.capture.assert_not_called()
     assert result == ConversionResult((tmp_path / "livro.pdf").resolve())
     assert count_pages(result.pdf_path) == 2
     assert [stage for stage, _ in progress] == [Stage.CAPTURE, Stage.PDF]
 
 
 @pytest.mark.parametrize("mode, resume", [(CaptureMode.NEW, False), (CaptureMode.RESUME, True)])
-def test_capture_modes_use_the_browser(saved_capture, tmp_path, monkeypatch, mode, resume):
-    capture = Mock(return_value=saved_capture.page_paths(2))
-    monkeypatch.setattr(conversion_module, "capture_document", capture)
+def test_capture_modes_use_the_browser(harness, tmp_path, mode, resume):
+    harness.capturer.capture.return_value = harness.store.page_paths(2)
     wait_for_ready = Mock()
 
-    run(ConversionRequest(DOCUMENT, tmp_path / "livro.pdf", mode), wait_for_ready=wait_for_ready)
+    run(harness, ConversionRequest(DOCUMENT, tmp_path / "livro.pdf", mode), wait_for_ready=wait_for_ready)
 
-    assert capture.call_args.kwargs["resume"] is resume
-    assert capture.call_args.kwargs["wait_for_ready"] is wait_for_ready
+    assert harness.capturer.capture.call_args.args == (DOCUMENT,)
+    assert harness.capturer.capture.call_args.kwargs["resume"] is resume
+    assert harness.capturer.capture.call_args.kwargs["wait_for_ready"] is wait_for_ready
+
+
+def test_capture_status_is_reported_as_capture_stage(harness, tmp_path):
+    def capture(document, *, on_status, **kwargs):
+        on_status("Capturando página 1 de 2...")
+        return harness.store.page_paths(2)
+
+    harness.capturer.capture.side_effect = capture
+
+    _, progress = run(harness, ConversionRequest(DOCUMENT, tmp_path / "livro.pdf"))
+
+    assert progress[0] == (Stage.CAPTURE, "Capturando página 1 de 2...")
 
 
 @pytest.mark.parametrize("export_text", [False, True])
-def test_ocr_runs_after_pdf_and_reports_text(saved_capture, tmp_path, monkeypatch, export_text):
-    add_ocr = Mock()
-    monkeypatch.setattr(conversion_module, "add_ocr", add_ocr)
+def test_ocr_runs_after_pdf_and_reports_text(harness, tmp_path, export_text):
     request = ConversionRequest(
         DOCUMENT,
         tmp_path / "livro.pdf",
@@ -84,42 +113,37 @@ def test_ocr_runs_after_pdf_and_reports_text(saved_capture, tmp_path, monkeypatc
         export_text=export_text,
     )
 
-    result, progress = run(request)
+    result, progress = run(harness, request)
 
     pdf_path = (tmp_path / "livro.pdf").resolve()
-    add_ocr.assert_called_once()
-    assert add_ocr.call_args.args == (pdf_path, "por+eng")
     text_path = pdf_path.with_suffix(".txt") if export_text else None
-    assert add_ocr.call_args.kwargs["text_path"] == text_path
+    recognize = harness.text_recognizer.recognize
+    recognize.assert_called_once()
+    assert recognize.call_args.args == (pdf_path, "por+eng")
+    assert recognize.call_args.kwargs["text_path"] == text_path
     assert result.text_path == text_path
     assert progress[-1][0] is Stage.OCR
 
 
-def test_interrupted_ocr_reports_preserved_pdf(saved_capture, tmp_path, monkeypatch):
-    monkeypatch.setattr(
-        conversion_module,
-        "add_ocr",
-        Mock(side_effect=InterruptedError("OCR interrompido.")),
-    )
+def test_interrupted_ocr_reports_preserved_pdf(harness, tmp_path):
+    harness.text_recognizer.recognize.side_effect = InterruptedError("OCR interrompido.")
     request = ConversionRequest(DOCUMENT, tmp_path / "livro.pdf", CaptureMode.REUSE, ocr_language="por")
 
     with pytest.raises(OcrInterrupted) as interruption:
-        run(request)
+        run(harness, request)
 
     assert str(interruption.value) == "OCR interrompido."
     assert interruption.value.pdf_path == (tmp_path / "livro.pdf").resolve()
     assert interruption.value.pdf_path.is_file()
 
 
-def test_cancellation_before_pdf_creates_nothing(saved_capture, tmp_path, monkeypatch):
-    create_pdf = Mock()
-    monkeypatch.setattr(conversion_module, "create_pdf", create_pdf)
+def test_cancellation_before_pdf_creates_nothing(harness, tmp_path):
     request = ConversionRequest(DOCUMENT, tmp_path / "livro.pdf", CaptureMode.REUSE)
 
     with pytest.raises(InterruptedError):
-        run(request, should_cancel=lambda: True)
+        run(harness, request, should_cancel=lambda: True)
 
-    create_pdf.assert_not_called()
+    harness.pdf_builder.build.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -133,22 +157,22 @@ def test_request_rejects_invalid_options(output, ocr_language, export_text):
 
 
 @pytest.mark.parametrize("ocr_language", [None, "por+eng"])
-def test_requirements_are_checked_only_with_ocr(monkeypatch, ocr_language):
-    check = Mock()
-    monkeypatch.setattr(conversion_module, "check_ocr_available", check)
-
-    check_requirements(ConversionRequest(DOCUMENT, Path("livro.pdf"), ocr_language=ocr_language))
+def test_requirements_are_checked_only_with_ocr(harness, ocr_language):
+    harness.converter.check_requirements(
+        ConversionRequest(DOCUMENT, Path("livro.pdf"), ocr_language=ocr_language),
+    )
 
     if ocr_language is None:
-        check.assert_not_called()
+        harness.text_recognizer.check_available.assert_not_called()
     else:
-        check.assert_called_once_with(ocr_language)
+        harness.text_recognizer.check_available.assert_called_once_with(ocr_language)
 
 
-def test_output_path_prefers_destination_then_folder_then_capture_dir(tmp_path):
+def test_output_path_prefers_destination_then_folder_then_capture_dir(harness, tmp_path):
     destination = tmp_path / "escolhido.pdf"
     folder = tmp_path / "pdfs"
+    converter = harness.converter
 
-    assert resolve_output_path(DOCUMENT, destination, folder) == destination
-    assert resolve_output_path(DOCUMENT, None, folder) == folder / "123.pdf"
-    assert resolve_output_path(DOCUMENT) == Path("output") / "123" / "123.pdf"
+    assert converter.output_path(DOCUMENT, destination, folder) == destination
+    assert converter.output_path(DOCUMENT, None, folder) == folder / "123.pdf"
+    assert converter.output_path(DOCUMENT) == harness.store.directory / "123.pdf"

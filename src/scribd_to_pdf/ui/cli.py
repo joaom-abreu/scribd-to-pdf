@@ -1,5 +1,5 @@
 import argparse
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from playwright.sync_api import Error as PlaywrightError
@@ -9,11 +9,10 @@ from scribd_to_pdf.application.conversion import (
     CaptureMode,
     ConversionRequest,
     ConversionResult,
+    DocumentConverter,
     Stage,
-    check_requirements,
-    convert,
-    resolve_output_path,
 )
+from scribd_to_pdf.bootstrap import build_converter
 from scribd_to_pdf.domain.document import Document
 from scribd_to_pdf.domain.languages import DEFAULT_LANGUAGE, LANGUAGES
 from scribd_to_pdf.infrastructure.ocr import OcrError
@@ -24,7 +23,11 @@ READY_PROMPT = (
 )
 
 
-def main(argv: Sequence[str] | None = None) -> None:
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    converter_factory: Callable[[], DocumentConverter] = build_converter,
+) -> None:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
@@ -32,7 +35,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         parser.error("A opção --export-text exige --ocr.")
 
     try:
-        result = _run(args)
+        result = _run(args, converter_factory())
     except KeyboardInterrupt:
         parser.exit(130, "\nOperação interrompida.\n")
     except EOFError:
@@ -46,18 +49,18 @@ def main(argv: Sequence[str] | None = None) -> None:
         print(f"Texto salvo em: {result.text_path}")
 
 
-def _run(args: argparse.Namespace) -> ConversionResult:
+def _run(args: argparse.Namespace, converter: DocumentConverter) -> ConversionResult:
     document = Document.from_url(args.url)
     request = ConversionRequest(
         document=document,
-        output_path=resolve_output_path(document, args.output),
+        output_path=converter.output_path(document, args.output),
         mode=_capture_mode(args),
         ocr_language=args.ocr_language if args.ocr else None,
         export_text=args.export_text,
     )
 
-    check_requirements(request)
-    return convert(request, on_progress=_print_progress, wait_for_ready=_wait_for_enter)
+    converter.check_requirements(request)
+    return converter.convert(request, on_progress=_print_progress, wait_for_ready=_wait_for_enter)
 
 
 def _capture_mode(args: argparse.Namespace) -> CaptureMode:

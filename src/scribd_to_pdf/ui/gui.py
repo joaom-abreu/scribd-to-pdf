@@ -13,12 +13,11 @@ from scribd_to_pdf.application.conversion import (
     CaptureMode,
     ConversionRequest,
     ConversionResult,
+    DocumentConverter,
     OcrInterrupted,
     Stage,
-    check_requirements,
-    convert,
-    resolve_output_path,
 )
+from scribd_to_pdf.bootstrap import build_converter
 from scribd_to_pdf.domain.cancellation import raise_if_cancelled
 from scribd_to_pdf.domain.document import Document
 from scribd_to_pdf.domain.languages import LANGUAGES
@@ -45,8 +44,9 @@ def _state(enabled: bool) -> str:
 
 
 class Application:
-    def __init__(self, root: tk.Tk) -> None:
+    def __init__(self, root: tk.Tk, converter: DocumentConverter) -> None:
         self.root = root
+        self.converter = converter
         self.ui_calls: queue.Queue[Callable[[], None]] = queue.Queue()
         self.ready_event = threading.Event()
         self.cancel_event = threading.Event()
@@ -288,7 +288,7 @@ class Application:
 
         return ConversionRequest(
             document=document,
-            output_path=resolve_output_path(
+            output_path=self.converter.output_path(
                 document,
                 Path(destination) if destination else None,
                 self.destination_folder,
@@ -336,7 +336,7 @@ class Application:
 
         try:
             request = self._build_request()
-            check_requirements(request)
+            self.converter.check_requirements(request)
         except (ValueError, OSError, RuntimeError) as error:
             messagebox.showerror("Não foi possível iniciar", str(error), parent=self.root)
             return
@@ -407,7 +407,7 @@ class Application:
 
     def _convert(self, request: ConversionRequest) -> None:
         try:
-            result = convert(
+            result = self.converter.convert(
                 request,
                 on_progress=partial(self._call_on_ui, self._on_progress),
                 wait_for_ready=self._wait_for_ready,
@@ -490,7 +490,7 @@ class Application:
 
 def main() -> None:
     root = tk.Tk()
-    application = Application(root)
+    application = Application(root, build_converter())
 
     try:
         root.mainloop()

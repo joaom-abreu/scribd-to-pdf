@@ -247,3 +247,18 @@ def _publish(outputs: _OcrOutputs, pdf_path: Path, text_path: Path | None) -> No
         else:
             text_path.unlink(missing_ok=True)
         raise
+
+
+class OcrMyPdfRecognizer:
+    def check_available(self, language: str) -> None:
+        check_ocr_available(language)
+
+    def recognize(
+        self,
+        pdf_path: Path,
+        language: str,
+        *,
+        text_path: Path | None,
+        should_cancel: ShouldCancel,
+    ) -> None:
+        add_ocr(pdf_path, language, text_path=text_path, should_cancel=should_cancel)

@@ -97,3 +97,17 @@ def _page_numbers(value: object) -> frozenset[int]:
         return frozenset(value)
 
     raise ValueError("O registro contém números de página inválidos.")
+
+
+class FileCaptureRepository:
+    def __init__(self, root: Path = CAPTURES_ROOT) -> None:
+        self._root = root
+
+    def store(self, document: Document) -> CaptureStore:
+        return CaptureStore(document, self._root)
+
+    def directory(self, document: Document) -> Path:
+        return self.store(document).directory
+
+    def load_complete(self, document: Document) -> list[Path]:
+        return self.store(document).load_complete_capture()

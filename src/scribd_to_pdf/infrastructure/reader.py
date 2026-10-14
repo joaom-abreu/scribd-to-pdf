@@ -6,7 +6,8 @@ from playwright.sync_api import Locator, Page, sync_playwright
 
 from scribd_to_pdf.domain.cancellation import ShouldCancel, raise_if_cancelled
 from scribd_to_pdf.domain.capture import CaptureProgress
-from scribd_to_pdf.infrastructure.storage import CaptureStore
+from scribd_to_pdf.domain.document import Document
+from scribd_to_pdf.infrastructure.storage import CaptureStore, FileCaptureRepository
 
 TIMEOUT_MS = 30_000
 NAVIGATION_TIMEOUT_MS = 60_000
@@ -78,6 +79,28 @@ class ScribdReader:
         document_page = self.scroll_to(number)
         document_page.wait_for_function(IMAGES_LOADED, timeout=TIMEOUT_MS)
         document_page.screenshot(path=path, type="png", animations="disabled", timeout=TIMEOUT_MS)
+
+
+class PlaywrightPageCapturer:
+    def __init__(self, repository: FileCaptureRepository) -> None:
+        self._repository = repository
+
+    def capture(
+        self,
+        document: Document,
+        *,
+        resume: bool,
+        wait_for_ready: Callable[[], None],
+        on_status: Callable[[str], None],
+        should_cancel: ShouldCancel,
+    ) -> list[Path]:
+        return capture_document(
+            self._repository.store(document),
+            resume=resume,
+            wait_for_ready=wait_for_ready,
+            on_status=on_status,
+            should_cancel=should_cancel,
+        )
 
 
 def capture_document(

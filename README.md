@@ -240,14 +240,17 @@ python -m pytest -q
 
 No Windows, use `.\.venv\Scripts\python.exe` no lugar de `python`. A suíte usa arquivos locais e simulações de navegador e OCR, sem acessar o Scribd.
 
-O código segue camadas, e cada camada só depende das que estão acima dela na tabela:
+O código segue a Clean Architecture: as dependências apontam para dentro, e a aplicação conhece apenas as interfaces que ela mesma define.
 
 | Pasta em `src/scribd_to_pdf/` | Responsabilidade |
 | --- | --- |
 | `domain/` | Regras sem dependências externas: documento e validação da URL, progresso da captura, idiomas e cancelamento. |
-| `infrastructure/` | Integrações: leitor do Scribd com Playwright (`reader.py`), capturas salvas (`storage.py`), PDF (`pdf.py`), OCR (`ocr.py`), preferências, gravação atômica de arquivos e abertura pelo sistema. |
-| `application/` | Caso de uso `convert`, que coordena captura, montagem do PDF e OCR para as duas interfaces. |
+| `application/` | Caso de uso `DocumentConverter`, que coordena captura, montagem do PDF e OCR, e as portas em `ports.py` (`CaptureRepository`, `PageCapturer`, `PdfBuilder`, `TextRecognizer`). Não importa nada da infraestrutura. |
+| `infrastructure/` | Adaptadores que implementam as portas: leitor do Scribd com Playwright (`reader.py`), capturas salvas (`storage.py`), PDF (`pdf.py`) e OCR (`ocr.py`), além de preferências, gravação atômica de arquivos e abertura pelo sistema. |
 | `ui/` | Interfaces de terminal (`cli.py`) e gráfica (`gui.py`), que montam o pedido e exibem o progresso. |
+| `bootstrap.py` | Raiz de composição: cria os adaptadores e os injeta no `DocumentConverter` usado pelas interfaces. |
+
+Nos testes, o caso de uso recebe dublês das portas, sem substituir funções dos módulos.
 
 Documentação das ferramentas: [Playwright](https://playwright.dev/python/), [OCRmyPDF](https://ocrmypdf.readthedocs.io/en/latest/), [Tesseract](https://tesseract-ocr.github.io/tessdoc/).
 

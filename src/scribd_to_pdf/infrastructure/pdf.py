@@ -30,3 +30,8 @@ def create_pdf(image_paths: list[Path], output_path: Path) -> Path:
             raise ValueError(f"PDF com {page_count} páginas; esperado: {len(image_paths)}.")
 
     return output_path
+
+
+class Img2PdfBuilder:
+    def build(self, image_paths: list[Path], output_path: Path) -> Path:
+        return create_pdf(image_paths, output_path)

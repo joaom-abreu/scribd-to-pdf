@@ -10,12 +10,14 @@ from scribd_to_pdf.application.conversion import (
     CaptureMode,
     ConversionRequest,
     ConversionResult,
+    DocumentConverter,
     OcrInterrupted,
     Stage,
 )
 from scribd_to_pdf.domain.languages import LANGUAGES
 from scribd_to_pdf.infrastructure.ocr import OcrError
 from scribd_to_pdf.infrastructure.preferences import Preferences
+from scribd_to_pdf.infrastructure.storage import FileCaptureRepository
 from scribd_to_pdf.ui import gui as gui_module
 from scribd_to_pdf.ui.gui import Application
 
@@ -46,6 +48,7 @@ def variable(value: object) -> Mock:
 def application(monkeypatch):
     app = Application.__new__(Application)
     app.root = Mock()
+    app.converter = Mock(wraps=DocumentConverter(FileCaptureRepository(), Mock(), Mock(), Mock()))
     app.ui_calls = queue.Queue()
     app.ready_event = threading.Event()
     app.cancel_event = threading.Event()
@@ -67,7 +70,6 @@ def application(monkeypatch):
         setattr(app, name, Mock())
 
     monkeypatch.setattr(gui_module, "save_preferences", Mock())
-    monkeypatch.setattr(gui_module, "check_requirements", Mock())
     monkeypatch.setattr(gui_module.messagebox, "showerror", Mock())
     return app
 
@@ -115,7 +117,7 @@ def test_missing_language_prevents_start(application, thread):
     previous_pdf = Path("anterior.pdf")
     application.last_pdf = previous_pdf
     application.ocr_enabled.get.return_value = True
-    gui_module.check_requirements.side_effect = OcrError("Falta o modelo Francês (fra).")
+    application.converter.check_requirements.side_effect = OcrError("Falta o modelo Francês (fra).")
 
     application._start()
 
@@ -133,7 +135,7 @@ def test_start_checks_requirements_and_starts_worker(application, thread, ocr_en
     application._start()
 
     request = started_request(thread)
-    gui_module.check_requirements.assert_called_once_with(request)
+    application.converter.check_requirements.assert_called_once_with(request)
     assert application.running
     assert request.ocr_language == ("por+eng" if ocr_enabled else None)
     assert request.mode is CaptureMode.NEW
@@ -253,7 +255,7 @@ def test_finished_conversion_enables_result_buttons(application, monkeypatch, tm
     pdf_path = tmp_path / "livro.pdf"
     result = ConversionResult(pdf_path, pdf_path.with_suffix(".txt") if text_saved else None)
     convert = Mock(return_value=result)
-    monkeypatch.setattr(gui_module, "convert", convert)
+    application.converter.convert = convert
     application.running = True
 
     application._convert(Mock())
@@ -269,7 +271,7 @@ def test_finished_conversion_enables_result_buttons(application, monkeypatch, tm
 
 def test_interrupted_ocr_keeps_pdf_accessible(application, monkeypatch, tmp_path):
     pdf_path = tmp_path / "livro.pdf"
-    monkeypatch.setattr(gui_module, "convert", Mock(side_effect=OcrInterrupted(pdf_path, OCR_INTERRUPTED)))
+    application.converter.convert = Mock(side_effect=OcrInterrupted(pdf_path, OCR_INTERRUPTED))
     application.running = True
 
     application._convert(Mock())
@@ -283,7 +285,7 @@ def test_interrupted_ocr_keeps_pdf_accessible(application, monkeypatch, tmp_path
 
 
 def test_interrupted_capture_suggests_resume(application, monkeypatch):
-    monkeypatch.setattr(gui_module, "convert", Mock(side_effect=InterruptedError("Captura interrompida.")))
+    application.converter.convert = Mock(side_effect=InterruptedError("Captura interrompida."))
     application.running = True
 
     application._convert(Mock())
@@ -295,7 +297,7 @@ def test_interrupted_capture_suggests_resume(application, monkeypatch):
 
 
 def test_failure_shows_error_unless_closing(application, monkeypatch):
-    monkeypatch.setattr(gui_module, "convert", Mock(side_effect=ValueError("Falha simulada.")))
+    application.converter.convert = Mock(side_effect=ValueError("Falha simulada."))
     application.running = True
 
     application._convert(Mock())

@@ -81,10 +81,10 @@ python -m venv .venv
 Para abrir a interface:
 
 ```powershell
-.\.venv\Scripts\python.exe -m scribd_to_pdf.gui
+.\.venv\Scripts\python.exe -m scribd_to_pdf.ui.gui
 ```
 
-Nos exemplos de terminal abaixo, substitua `scribd-to-pdf` por `.\.venv\Scripts\python.exe -m scribd_to_pdf.cli`.
+Nos exemplos de terminal abaixo, substitua `scribd-to-pdf` por `.\.venv\Scripts\python.exe -m scribd_to_pdf.ui.cli`.
 
 ## Preparar o OCR
 
@@ -240,16 +240,14 @@ python -m pytest -q
 
 No Windows, use `.\.venv\Scripts\python.exe` no lugar de `python`. A suíte usa arquivos locais e simulações de navegador e OCR, sem acessar o Scribd.
 
-| Arquivo em `src/scribd_to_pdf/` | Responsabilidade |
+O código segue camadas, e cada camada só depende das que estão acima dela na tabela:
+
+| Pasta em `src/scribd_to_pdf/` | Responsabilidade |
 | --- | --- |
-| `cli.py`, `gui.py` | Interfaces de terminal e gráfica. |
-| `browser.py`, `capture.py`, `navigation.py` | Abertura do leitor, navegação e captura das páginas. |
-| `cache.py` | Registro do progresso e reutilização das capturas. |
-| `pdf.py` | Montagem e validação do PDF. |
-| `ocr.py` | Verificação de idiomas, OCR, interrupção e exportação de texto. |
-| `preferences.py` | Leitura e gravação das preferências da interface. |
-| `openers.py` | Abertura do PDF e da pasta pelo sistema operacional. |
-| `scribd.py`, `models.py` | Validação da URL e representação do documento. |
+| `domain/` | Regras sem dependências externas: documento e validação da URL, progresso da captura, idiomas e cancelamento. |
+| `infrastructure/` | Integrações: leitor do Scribd com Playwright (`reader.py`), capturas salvas (`storage.py`), PDF (`pdf.py`), OCR (`ocr.py`), preferências, gravação atômica de arquivos e abertura pelo sistema. |
+| `application/` | Caso de uso `convert`, que coordena captura, montagem do PDF e OCR para as duas interfaces. |
+| `ui/` | Interfaces de terminal (`cli.py`) e gráfica (`gui.py`), que montam o pedido e exibem o progresso. |
 
 Documentação das ferramentas: [Playwright](https://playwright.dev/python/), [OCRmyPDF](https://ocrmypdf.readthedocs.io/en/latest/), [Tesseract](https://tesseract-ocr.github.io/tessdoc/).
 

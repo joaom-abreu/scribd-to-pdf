@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from scribd_to_pdf import preferences as preferences_module
-from scribd_to_pdf.preferences import (
+from scribd_to_pdf.infrastructure import preferences as preferences_module
+from scribd_to_pdf.infrastructure.preferences import (
     Preferences,
     get_preferences_path,
     load_preferences,

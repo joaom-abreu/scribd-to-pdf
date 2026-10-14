@@ -17,6 +17,7 @@ from scribd_to_pdf.application.conversion import (
     OcrInterrupted,
     Stage,
 )
+from scribd_to_pdf.application.errors import ConversionError
 from scribd_to_pdf.bootstrap import build_converter
 from scribd_to_pdf.domain.cancellation import raise_if_cancelled
 from scribd_to_pdf.domain.document import Document
@@ -337,7 +338,7 @@ class Application:
         try:
             request = self._build_request()
             self.converter.check_requirements(request)
-        except (ValueError, OSError, RuntimeError) as error:
+        except (ValueError, OSError, ConversionError) as error:
             messagebox.showerror("Não foi possível iniciar", str(error), parent=self.root)
             return
 

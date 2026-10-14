@@ -5,7 +5,7 @@ from unittest.mock import Mock
 import pytest
 
 from scribd_to_pdf.application.conversion import CaptureMode, ConversionResult, DocumentConverter
-from scribd_to_pdf.infrastructure.ocr import OcrError
+from scribd_to_pdf.application.errors import ConversionError
 from scribd_to_pdf.infrastructure.storage import FileCaptureRepository
 from scribd_to_pdf.ui import cli as cli_module
 
@@ -37,7 +37,7 @@ def check_requirements(converter):
 
 @pytest.mark.parametrize("mode", [[], ["--reuse"], ["--resume"]])
 def test_missing_language_stops_before_conversion(cli, convert, check_requirements, capsys, mode):
-    check_requirements.side_effect = OcrError("Falta o modelo Francês (fra).")
+    check_requirements.side_effect = ConversionError("Falta o modelo Francês (fra).")
 
     with pytest.raises(SystemExit) as error:
         cli([URL, *mode, "--ocr", "--ocr-language", "por+fra"])
@@ -103,6 +103,16 @@ def test_invalid_input_exits_with_error(cli, convert, check_requirements, capsys
     assert error.value.code == 1
     assert capsys.readouterr().err.startswith("Erro:")
     convert.assert_not_called()
+
+
+def test_conversion_error_exits_with_message(cli, convert, check_requirements, capsys):
+    convert.side_effect = ConversionError("Falha no navegador: tempo esgotado.")
+
+    with pytest.raises(SystemExit) as error:
+        cli([URL])
+
+    assert error.value.code == 1
+    assert capsys.readouterr().err == "Erro: Falha no navegador: tempo esgotado.\n"
 
 
 def test_keyboard_interrupt_exits_with_130(cli, convert, check_requirements, capsys):

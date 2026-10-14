@@ -8,6 +8,7 @@ from tempfile import TemporaryDirectory
 
 from pypdf.errors import PdfReadError
 
+from scribd_to_pdf.application.errors import ConversionError
 from scribd_to_pdf.domain.cancellation import ShouldCancel, never_cancel, raise_if_cancelled
 from scribd_to_pdf.domain.languages import DEFAULT_LANGUAGE, describe_language, normalize_languages
 from scribd_to_pdf.infrastructure.pdf import count_pages
@@ -19,7 +20,7 @@ STOP_TIMEOUT_SECONDS = 3
 LANGUAGE_LIST_HEADER = "List of available languages"
 
 
-class OcrError(RuntimeError):
+class OcrError(ConversionError):
     pass
 
 
@@ -261,4 +262,9 @@ class OcrMyPdfRecognizer:
         text_path: Path | None,
         should_cancel: ShouldCancel,
     ) -> None:
-        add_ocr(pdf_path, language, text_path=text_path, should_cancel=should_cancel)
+        try:
+            add_ocr(pdf_path, language, text_path=text_path, should_cancel=should_cancel)
+        except InterruptedError:
+            raise
+        except (OSError, PdfReadError) as error:
+            raise OcrError(f"Não foi possível aplicar o OCR: {error}") from error

@@ -13,7 +13,8 @@ import pytest
 from pypdf import PdfReader, PdfWriter
 
 from scribd_to_pdf.infrastructure import ocr as ocr_module
-from scribd_to_pdf.infrastructure.ocr import OcrError, add_ocr, check_ocr_available
+from scribd_to_pdf.application.errors import ConversionError
+from scribd_to_pdf.infrastructure.ocr import OcrError, OcrMyPdfRecognizer, add_ocr, check_ocr_available
 
 FINISHED_PROCESS_STATES = {"Z", "X"}
 
@@ -577,3 +578,19 @@ def test_disabled_export_keeps_existing_text(pdf_path, monkeypatch):
 
     assert text_path.read_text(encoding="utf-8") == "Texto editado pelo usuário."
     assert set(pdf_path.parent.iterdir()) == {pdf_path, text_path}
+
+
+def test_recognizer_reports_unreadable_pdf_as_conversion_error(pdf_path):
+    pdf_path.unlink()
+
+    with pytest.raises(ConversionError, match="OCR"):
+        OcrMyPdfRecognizer().recognize(
+            pdf_path, "por", text_path=None, should_cancel=lambda: False,
+        )
+
+
+def test_recognizer_keeps_interruptions(pdf_path):
+    with pytest.raises(InterruptedError, match="preservado"):
+        OcrMyPdfRecognizer().recognize(
+            pdf_path, "por", text_path=None, should_cancel=lambda: True,
+        )

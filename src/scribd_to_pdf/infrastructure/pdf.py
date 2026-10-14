@@ -2,8 +2,23 @@ from pathlib import Path
 
 import img2pdf
 from pypdf import PdfReader
+from pypdf.errors import PdfReadError
 
+from scribd_to_pdf.application.errors import ConversionError
 from scribd_to_pdf.infrastructure.files import atomic_target
+
+PDF_ERRORS = (
+    OSError,
+    ValueError,
+    PdfReadError,
+    img2pdf.AlphaChannelError,
+    img2pdf.ExifOrientationError,
+    img2pdf.ImageOpenError,
+    img2pdf.JpegColorspaceError,
+    img2pdf.NegativeDimensionError,
+    img2pdf.PdfTooLargeError,
+    img2pdf.UnsupportedColorspaceError,
+)
 
 
 def count_pages(path: Path) -> int:
@@ -34,4 +49,7 @@ def create_pdf(image_paths: list[Path], output_path: Path) -> Path:
 
 class Img2PdfBuilder:
     def build(self, image_paths: list[Path], output_path: Path) -> Path:
-        return create_pdf(image_paths, output_path)
+        try:
+            return create_pdf(image_paths, output_path)
+        except PDF_ERRORS as error:
+            raise ConversionError(f"Não foi possível gerar o PDF: {error}") from error

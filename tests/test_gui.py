@@ -14,8 +14,8 @@ from scribd_to_pdf.application.conversion import (
     OcrInterrupted,
     Stage,
 )
+from scribd_to_pdf.application.errors import ConversionError
 from scribd_to_pdf.domain.languages import LANGUAGES
-from scribd_to_pdf.infrastructure.ocr import OcrError
 from scribd_to_pdf.infrastructure.preferences import Preferences
 from scribd_to_pdf.infrastructure.storage import FileCaptureRepository
 from scribd_to_pdf.ui import gui as gui_module
@@ -117,7 +117,7 @@ def test_missing_language_prevents_start(application, thread):
     previous_pdf = Path("anterior.pdf")
     application.last_pdf = previous_pdf
     application.ocr_enabled.get.return_value = True
-    application.converter.check_requirements.side_effect = OcrError("Falta o modelo Francês (fra).")
+    application.converter.check_requirements.side_effect = ConversionError("Falta o modelo Francês (fra).")
 
     application._start()
 

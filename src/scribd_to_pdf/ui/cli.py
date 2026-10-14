@@ -2,9 +2,6 @@ import argparse
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
-from playwright.sync_api import Error as PlaywrightError
-from pypdf.errors import PdfReadError
-
 from scribd_to_pdf.application.conversion import (
     CaptureMode,
     ConversionRequest,
@@ -12,10 +9,10 @@ from scribd_to_pdf.application.conversion import (
     DocumentConverter,
     Stage,
 )
+from scribd_to_pdf.application.errors import ConversionError
 from scribd_to_pdf.bootstrap import build_converter
 from scribd_to_pdf.domain.document import Document
 from scribd_to_pdf.domain.languages import DEFAULT_LANGUAGE, LANGUAGES
-from scribd_to_pdf.infrastructure.ocr import OcrError
 
 READY_PROMPT = (
     "\nAguarde a capa carregar e feche o aviso de privacidade."
@@ -40,7 +37,7 @@ def main(
         parser.exit(130, "\nOperação interrompida.\n")
     except EOFError:
         parser.exit(1, "\nEntrada encerrada antes de confirmar a captura.\n")
-    except (PlaywrightError, PdfReadError, ValueError, OSError, OcrError) as error:
+    except (ValueError, OSError, ConversionError) as error:
         parser.exit(1, f"Erro: {error}\n")
 
     print(f"PDF salvo em: {result.pdf_path}")

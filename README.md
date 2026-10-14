@@ -250,7 +250,7 @@ O código segue a Clean Architecture: as dependências apontam para dentro, e a 
 | `ui/` | Interfaces de terminal (`cli.py`) e gráfica (`gui.py`), que montam o pedido e exibem o progresso. |
 | `bootstrap.py` | Raiz de composição: cria os adaptadores e os injeta no `DocumentConverter` usado pelas interfaces. |
 
-Nos testes, o caso de uso recebe dublês das portas, sem substituir funções dos módulos.
+Os adaptadores convertem as falhas do Playwright, do pypdf, do img2pdf e do OCRmyPDF em `ConversionError` (`application/errors.py`), então as interfaces tratam um único tipo de erro e não importam essas bibliotecas. Nos testes, o caso de uso recebe dublês das portas, sem substituir funções dos módulos.
 
 Documentação das ferramentas: [Playwright](https://playwright.dev/python/), [OCRmyPDF](https://ocrmypdf.readthedocs.io/en/latest/), [Tesseract](https://tesseract-ocr.github.io/tessdoc/).
 

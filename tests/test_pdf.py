@@ -4,8 +4,9 @@ import pytest
 from PIL import Image
 from pypdf import PdfReader
 
+from scribd_to_pdf.application.errors import ConversionError
 from scribd_to_pdf.infrastructure import pdf as pdf_module
-from scribd_to_pdf.infrastructure.pdf import count_pages, create_pdf
+from scribd_to_pdf.infrastructure.pdf import Img2PdfBuilder, count_pages, create_pdf
 
 PAGE_COLORS = (
     (255, 0, 0),
@@ -86,3 +87,13 @@ def test_failure_keeps_previous_pdf_and_removes_temporary_file(
 
     assert output.read_bytes() == previous_pdf
     assert set(tmp_path.iterdir()) == previous_files
+
+
+def test_builder_reports_failures_as_conversion_error(tmp_path: Path, page_images: list[Path]):
+    page_images[1].unlink()
+
+    with pytest.raises(ConversionError, match="page_0002.png") as error:
+        Img2PdfBuilder().build(page_images, tmp_path / "livro.pdf")
+
+    assert isinstance(error.value.__cause__, FileNotFoundError)
+    assert not (tmp_path / "livro.pdf").exists()

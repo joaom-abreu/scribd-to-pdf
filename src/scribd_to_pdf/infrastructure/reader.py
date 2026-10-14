@@ -2,8 +2,10 @@ import re
 from collections.abc import Callable
 from pathlib import Path
 
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Locator, Page, sync_playwright
 
+from scribd_to_pdf.application.errors import ConversionError
 from scribd_to_pdf.domain.cancellation import ShouldCancel, raise_if_cancelled
 from scribd_to_pdf.domain.capture import CaptureProgress
 from scribd_to_pdf.domain.document import Document
@@ -94,13 +96,20 @@ class PlaywrightPageCapturer:
         on_status: Callable[[str], None],
         should_cancel: ShouldCancel,
     ) -> list[Path]:
-        return capture_document(
-            self._repository.store(document),
-            resume=resume,
-            wait_for_ready=wait_for_ready,
-            on_status=on_status,
-            should_cancel=should_cancel,
-        )
+        try:
+            return capture_document(
+                self._repository.store(document),
+                resume=resume,
+                wait_for_ready=wait_for_ready,
+                on_status=on_status,
+                should_cancel=should_cancel,
+            )
+        except InterruptedError:
+            raise
+        except PlaywrightError as error:
+            raise ConversionError(f"Falha no navegador: {error.message}") from error
+        except (OSError, ValueError) as error:
+            raise ConversionError(str(error)) from error
 
 
 def capture_document(

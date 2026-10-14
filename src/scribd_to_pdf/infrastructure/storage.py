@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+from scribd_to_pdf.application.errors import ConversionError
 from scribd_to_pdf.domain.capture import CaptureProgress
 from scribd_to_pdf.domain.document import Document
 from scribd_to_pdf.infrastructure.files import write_text_atomically
@@ -110,4 +111,7 @@ class FileCaptureRepository:
         return self.store(document).directory
 
     def load_complete(self, document: Document) -> list[Path]:
-        return self.store(document).load_complete_capture()
+        try:
+            return self.store(document).load_complete_capture()
+        except (OSError, ValueError) as error:
+            raise ConversionError(str(error)) from error

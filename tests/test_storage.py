@@ -4,9 +4,10 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
+from scribd_to_pdf.application.errors import ConversionError
 from scribd_to_pdf.domain.capture import CaptureProgress
 from scribd_to_pdf.domain.document import Document
-from scribd_to_pdf.infrastructure.storage import CaptureStore
+from scribd_to_pdf.infrastructure.storage import CaptureStore, FileCaptureRepository
 
 
 @pytest.fixture
@@ -148,3 +149,16 @@ def test_progress_adds_pages_without_mutating():
     assert updated.captured_pages == frozenset({2})
     assert not updated.is_complete
     assert updated.with_page(1).with_page(3).is_complete
+
+
+def test_repository_reports_unusable_capture_as_conversion_error(tmp_path: Path, document: Document):
+    repository = FileCaptureRepository(tmp_path)
+
+    with pytest.raises(ConversionError, match="nova captura"):
+        repository.load_complete(document)
+
+
+def test_repository_returns_complete_capture(store: CaptureStore, tmp_path: Path, document: Document):
+    store.save_progress(complete(3))
+
+    assert FileCaptureRepository(tmp_path).load_complete(document) == store.page_paths(3)

@@ -444,7 +444,7 @@ class Application:
             self.cancel_button.configure(state="disabled")
 
             self._log(
-                "Interrompendo após a operação em andamento..."
+                "Interrupção solicitada. Aguarde..."
             )
 
     def _close(self) -> None:
@@ -478,6 +478,8 @@ class Application:
             mode: str,
             ocr_language: str | None = None,
     ) -> None:
+        pdf_path: Path | None = None
+
         try:
             self._check_cancelled()
 
@@ -503,21 +505,30 @@ class Application:
 
             if ocr_language is not None:
                 self._check_cancelled()
-                self._status(
-                    "Reconhecendo o texto com OCR. Aguarde..."
-                )
+                self.events.put((
+                    "ocr",
+                    "Reconhecendo o texto com OCR. "
+                    "Você pode clicar em Interromper.",
+                ))
                 pdf_path = add_ocr(
                     pdf_path,
                     language=ocr_language,
+                    should_cancel=self.cancel_event.is_set,
                 )
 
             self.events.put(("done", str(pdf_path.resolve())))
 
         except InterruptedError:
-            self.events.put((
-                "cancelled",
-                "Conversão interrompida.",
-            ))
+            if pdf_path is not None:
+                self.events.put((
+                    "ocr_cancelled",
+                    str(pdf_path.resolve()),
+                ))
+            else:
+                self.events.put((
+                    "cancelled",
+                    "Conversão interrompida.",
+                ))
 
         except Exception as error:
             self.events.put(("error", str(error)))
@@ -541,6 +552,12 @@ class Application:
                 self._log(text)
                 self.cancel_button.configure(state="disabled")
 
+            elif kind == "ocr":
+                self._log(text)
+
+                if not self.cancel_event.is_set():
+                    self.cancel_button.configure(state="normal")
+
             elif kind == "open_error":
                 self._log(f"Falha ao abrir: {text}")
 
@@ -563,6 +580,19 @@ class Application:
                     self._log(text)
                     self._log(
                         "Para continuar, escolha Retomar captura."
+                    )
+
+                elif kind == "ocr_cancelled":
+                    self.last_pdf = Path(text)
+                    self._update_result_buttons()
+                    self._log(
+                        "OCR interrompido. "
+                        "O PDF com as imagens foi preservado."
+                    )
+                    self._log(f"PDF salvo em: {text}")
+                    self._log(
+                        "Para aplicar OCR novamente, escolha "
+                        "Usar captura completa."
                     )
 
                 elif kind == "error":

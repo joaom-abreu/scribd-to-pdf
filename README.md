@@ -1,223 +1,105 @@
 # scribd-to-pdf
 
-Aplicativo em Python que captura as páginas exibidas no leitor do
-Scribd e reúne as imagens em um único PDF, preservando a ordem.
+Aplicativo em Python para capturar as páginas exibidas no leitor do Scribd e reuni-las, na ordem, em um PDF. Pode ser usado pela interface gráfica ou pelo terminal.
 
-Oferece interface gráfica e execução pelo terminal.
+O OCR opcional reconhece o texto das imagens para permitir buscas, seleção e cópia no PDF. Também é possível salvar esse texto em um arquivo `.txt` para consultar e editar.
 
 ## Recursos
 
-- Captura de documentos com páginas de texto ou imagens.
-- Geração de um único PDF.
-- Escolha do destino do PDF.
-- Retomada de capturas interrompidas.
-- Geração de PDF usando uma captura completa já salva.
-- Acompanhamento do progresso pela interface ou pelo terminal.
+- Captura das páginas com Chromium, controlado pelo Playwright.
+- Geração de PDF a partir das imagens salvas.
+- Retomada de capturas interrompidas e reutilização de capturas completas.
+- OCR com um ou mais idiomas e verificação dos modelos instalados antes da captura.
+- Interrupção do OCR preservando o PDF com as imagens.
+- Exportação do texto reconhecido para `.txt`.
+- Botões **Abrir PDF** e **Abrir pasta** na interface gráfica.
+- Preferências da interface salvas entre execuções: pasta de destino, OCR, idiomas e exportação de texto.
 
 ## Requisitos
 
-- Python 3.12 ou superior.
-- Tkinter disponível para utilizar a interface gráfica.
-- Ambiente gráfico para abrir o navegador.
-- Internet para instalar as dependências e capturar documentos.
+- Python **3.12 ou superior**, com `pip` e `venv`.
+- Git para obter o código.
+- Tkinter para usar a interface gráfica.
+- Chromium instalado pelo Playwright.
+- Ambiente gráfico e conexão com a internet para capturar ou retomar páginas.
+- Para OCR: OCRmyPDF, Tesseract e os modelos dos idiomas escolhidos, disponíveis no `PATH`.
 
-A compatibilidade do navegador depende dos
-[requisitos do Playwright](https://playwright.dev/python/docs/intro#system-requirements).
+O PDF é montado a partir das páginas capturadas no navegador. A captura depende do carregamento das páginas e da estrutura do leitor do Scribd. O reconhecimento de texto depende da qualidade dessas imagens e dos idiomas selecionados.
 
 ## Instalação
 
-Baixe ou clone este repositório. Abra um terminal na raiz do
-projeto, na pasta que contém `pyproject.toml`.
+### Preparar o sistema
 
-Escolha as instruções do seu sistema. Os comandos utilizam o
-Python da `.venv` diretamente, sem precisar ativá-la.
+Instale Python 3.12 ou superior, Git e o suporte a Tkinter correspondente à sua instalação do Python. Os pacotes e comandos de instalação variam conforme o sistema operacional.
 
-### Linux
+Consulte os [requisitos de sistema do Playwright](https://playwright.dev/python/docs/intro#system-requirements) para o navegador e a [documentação do Tkinter](https://docs.python.org/3/library/tkinter.html) para a interface.
 
-Instale Python, o suporte a ambientes virtuais e Tkinter pelo
-gerenciador de pacotes da sua distribuição.
+### Obter o projeto
 
-Verifique se o Python é 3.12 ou superior:
+```bash
+git clone https://github.com/joaom-abreu/scribd-to-pdf.git
+cd scribd-to-pdf
+```
+
+Execute a instalação dentro dessa pasta, onde está o arquivo `pyproject.toml`.
+
+### Linux e macOS
+
+Confira a versão do Python e crie um ambiente virtual:
 
 ```bash
 python3 --version
-```
-
-Confira o Tkinter; uma janela de demonstração deve abrir:
-
-```bash
-python3 -m tkinter
-```
-
-Feche essa janela e instale o projeto:
-
-```bash
 python3 -m venv .venv
-.venv/bin/python -m pip install -e .
-.venv/bin/python -m playwright install chromium
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e .
+python -m playwright install chromium
 ```
 
-#### Dependências do Chromium no Linux
+Ao abrir um novo terminal, entre novamente na pasta do projeto e ative o ambiente com `source .venv/bin/activate` antes de usar os comandos deste README.
 
-Se o navegador informar que faltam bibliotecas, nas distribuições
-oficialmente suportadas pelo Playwright é possível executar:
+Em distribuições Linux atendidas pelo instalador de dependências do Playwright, o comando abaixo instala também as bibliotecas de sistema exigidas pelo Chromium:
 
 ```bash
-.venv/bin/python -m playwright install-deps chromium
+python -m playwright install --with-deps chromium
 ```
 
-Em outras distribuições, instale as bibliotecas indicadas pelo erro
-usando o gerenciador de pacotes do sistema.
-
-### macOS
-
-Instale Python 3.12 ou superior pelo
-[site oficial do Python](https://www.python.org/downloads/macos/).
-
-Verifique a versão e o Tkinter:
-
-```bash
-python3 --version
-python3 -m tkinter
-```
-
-Feche a janela de demonstração e instale o projeto:
-
-```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -e .
-.venv/bin/python -m playwright install chromium
-```
+Se o navegador indicar bibliotecas ausentes, instale-as pelo gerenciador de pacotes do sistema, seguindo as mensagens do Playwright.
 
 ### Windows — PowerShell
 
-Instale Python 3.12 ou superior pelo
-[site oficial do Python](https://www.python.org/downloads/windows/).
-
-Verifique a versão e o Tkinter:
+Use o Python do ambiente virtual diretamente:
 
 ```powershell
-py -3 --version
-py -3 -m tkinter
-```
-
-Feche a janela de demonstração e instale o projeto:
-
-```powershell
-py -3 -m venv .venv
+python --version
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install -e .
 .\.venv\Scripts\python.exe -m playwright install chromium
 ```
 
-## Interface gráfica
-
-Execute na raiz do projeto.
-
-Linux e macOS:
-
-```bash
-.venv/bin/python -m scribd_to_pdf.gui
-```
-
-Windows:
+Para abrir a interface:
 
 ```powershell
 .\.venv\Scripts\python.exe -m scribd_to_pdf.gui
 ```
 
-1. Cole o link do documento.
-2. Escolha o destino do PDF, se desejar.
-3. Selecione o modo de captura.
-4. Inicie a conversão.
-5. Aguarde o documento aparecer no navegador e feche os avisos
-   que estiverem sobre as páginas.
-6. Volte à interface e clique em **Capturar páginas**.
-7. Aguarde a mensagem com o caminho do PDF.
+Nos exemplos de terminal abaixo, substitua `scribd-to-pdf` por `.\.venv\Scripts\python.exe -m scribd_to_pdf.cli`.
 
-### Modos disponíveis
+## Preparar o OCR
 
-| Modo | Comportamento |
-| --- | --- |
-| Nova captura | Captura todas as páginas novamente. |
-| Retomar captura | Aproveita o progresso salvo e captura as páginas restantes. |
-| Usar captura completa | Gera o PDF a partir das imagens salvas, sem abrir o navegador. |
+Instale o OCRmyPDF e os modelos do Tesseract antes de habilitar o OCR. Essa instalação é separada da instalação Python do projeto.
 
-## Terminal
+Siga as [instruções oficiais de instalação do OCRmyPDF](https://ocrmypdf.readthedocs.io/en/latest/installation.html) para seu sistema operacional, incluindo suas dependências e os modelos dos idiomas que deseja usar.
 
-Substitua `LINK_DO_DOCUMENTO` pelo endereço do documento.
-
-Linux e macOS:
+Confira a instalação no mesmo terminal usado para executar o aplicativo:
 
 ```bash
-.venv/bin/python -m scribd_to_pdf.cli "LINK_DO_DOCUMENTO"
+ocrmypdf --version
+tesseract --list-langs
 ```
 
-Windows:
-
-```powershell
-.\.venv\Scripts\python.exe -m scribd_to_pdf.cli "LINK_DO_DOCUMENTO"
-```
-
-Quando solicitado, prepare o documento no navegador e pressione
-Enter no terminal para iniciar a captura.
-
-### Opções
-
-Acrescente as opções ao comando:
-
-| Opção | Uso |
-| --- | --- |
-| `--output "livro.pdf"` | Define o destino do PDF. |
-| `--resume` | Retoma uma captura interrompida. |
-| `--reuse` | Usa uma captura completa já salva. |
-| `--help` | Exibe a ajuda. |
-
-Use `--resume` e `--reuse` separadamente.
-
-## Arquivos gerados
-
-Por padrão, os arquivos ficam em `output/<ID_DO_DOCUMENTO>/`:
-
-- `page_0001.png`, `page_0002.png` etc.: imagens das páginas.
-- `capture.json`: registro do progresso.
-- `<ID_DO_DOCUMENTO>.pdf`: PDF final.
-
-O caminho é relativo à pasta de onde o aplicativo foi executado.
-
-Para retomar uma captura, mantenha as imagens e `capture.json`.
-
-## Desenvolvimento
-
-Instale as dependências de desenvolvimento e execute os testes
-na raiz do projeto.
-
-### Linux e macOS
-
-```bash
-.venv/bin/python -m pip install -e ".[dev]"
-.venv/bin/python -m pytest -q
-```
-
-### Windows — PowerShell
-
-```powershell
-.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
-.\.venv\Scripts\python.exe -m pytest -q
-```
-
-Os testes utilizam imagens geradas localmente e arquivos temporários.
-Verificam a geração do PDF, a ordem das páginas, a preservação de
-arquivos após falhas e a validação do progresso salvo para retomar
-ou reutilizar capturas.
-
-## OCR opcional
-
-Use `--ocr` para gerar um PDF com texto pesquisável e selecionável.
-O idioma padrão é português.
-
-Escolha o idioma com `--ocr-language`:
-
-| Idioma | Código |
+| Idioma | Código do Tesseract |
 | --- | --- |
 | Português | `por` |
 | Inglês | `eng` |
@@ -225,38 +107,152 @@ Escolha o idioma com `--ocr-language`:
 | Francês | `fra` |
 | Alemão | `deu` |
 
-Para documentos com mais de um idioma, combine os códigos com `+`,
-como `por+eng` ou `fra+deu`.
+Na interface, marque os idiomas presentes no documento. No terminal, combine os códigos com `+`, como `por+eng`. Português é o idioma padrão.
 
-O OCR exige o comando `ocrmypdf` e os modelos dos idiomas escolhidos
-instalados no sistema.
+Ao iniciar uma conversão com OCR, o aplicativo verifica se os comandos necessários e todos os modelos escolhidos estão disponíveis. Se faltar algum modelo, a interface mostra um aviso e o terminal informa o erro antes de abrir o navegador.
 
-No Fedora:
+## Usar a interface gráfica
 
-```bash
-sudo dnf install ocrmypdf tesseract-osd \
-    tesseract-langpack-por tesseract-langpack-eng \
-    tesseract-langpack-spa tesseract-langpack-fra tesseract-langpack-deu
-```
-
-Para outros sistemas, siga o
-[guia de instalação do OCRmyPDF](https://ocrmypdf.readthedocs.io/en/latest/installation.html).
-
-Confira a instalação:
+Com o ambiente virtual ativo no Linux ou macOS:
 
 ```bash
-ocrmypdf --version
-tesseract --list-langs
+scribd-to-pdf-gui
 ```
 
-Exemplo usando páginas já capturadas de um livro em inglês:
+1. Cole o link HTTPS do documento no campo **Link do documento**.
+2. Se quiser escolher o nome e o destino do PDF, clique em **Escolher...**. O arquivo deve ter a extensão `.pdf`.
+3. Selecione o modo de captura na tabela abaixo.
+4. Para reconhecer o texto, marque **Adicionar texto pesquisável e selecionável (OCR)** e escolha os idiomas. Para gerar o TXT, marque também **Salvar também o texto reconhecido em .txt**.
+5. Clique em **Iniciar**.
+6. Quando o navegador abrir, aguarde a capa carregar e feche o aviso de privacidade ou outras janelas que cubram o documento.
+7. Volte à interface e clique em **Capturar páginas**. O aplicativo ativa o modo Fullscreen e começa a captura.
+8. Ao concluir, use **Abrir PDF** para ler o resultado ou **Abrir pasta** para acessar os arquivos, incluindo o TXT quando solicitado.
+
+| Modo | Quando usar |
+| --- | --- |
+| **Nova captura** | Capturar novamente todas as páginas do documento. |
+| **Retomar captura** | Continuar uma captura incompleta, aproveitando as páginas já salvas. |
+| **Usar captura completa** | Gerar o PDF a partir de todas as páginas já salvas, sem abrir o navegador. Também permite aplicar OCR novamente. |
+
+Em **Usar captura completa**, não há a etapa de confirmação no navegador. É preciso que a captura esteja completa e que suas imagens continuem na pasta `output/ID/`.
+
+### Destino e preferências
+
+Se o campo de destino estiver vazio, o aplicativo salva o PDF na pasta lembrada da execução anterior, usando o ID do documento como nome. Se nenhuma pasta tiver sido escolhida, usa `output/ID/ID.pdf`.
+
+A interface lembra a **pasta**, sem preencher novamente o nome do arquivo anterior. Também lembra se o OCR está ativado, os idiomas marcados e a opção de exportar texto. As escolhas são salvas ao selecionar um destino, iniciar uma conversão válida ou fechar a janela.
+
+## Usar pelo terminal
+
+Nos comandos abaixo, substitua `LINK_DO_DOCUMENTO` pela URL HTTPS do documento, no formato `https://www.scribd.com/document/ID/TITULO`, com um ID numérico. O título no final da URL é opcional.
+
+Capture as páginas e gere o PDF no destino padrão:
 
 ```bash
-scribd-to-pdf "https://www.scribd.com/document/629060068/the-metamorphosis-franz-kafka" --reuse --ocr --ocr-language eng
+scribd-to-pdf "LINK_DO_DOCUMENTO"
 ```
 
-O PDF mantém o caminho escolhido por `--output` ou o caminho padrão.
-Se o OCR falhar, o PDF gerado com as imagens permanece disponível.
+Quando o navegador abrir, aguarde a capa carregar, feche o aviso de privacidade e pressione **Enter no terminal**. O aplicativo ativa o Fullscreen e inicia a captura.
 
-A precisão do texto reconhecido depende da qualidade das imagens
-e do idioma escolhido. Revise o texto copiado antes de usá-lo em citações.
+Escolha o destino e reconheça texto em português e inglês, salvando também o TXT:
+
+```bash
+scribd-to-pdf "LINK_DO_DOCUMENTO" -o "livro.pdf" --ocr --ocr-language por+eng --export-text
+```
+
+Retome uma captura interrompida:
+
+```bash
+scribd-to-pdf "LINK_DO_DOCUMENTO" --resume
+```
+
+Gere novamente o PDF e aplique OCR a uma captura completa, sem abrir o navegador:
+
+```bash
+scribd-to-pdf "LINK_DO_DOCUMENTO" --reuse -o "livro.pdf" --ocr --ocr-language por+eng --export-text
+```
+
+| Opção | Comportamento |
+| --- | --- |
+| `-o ARQUIVO`, `--output ARQUIVO` | Define o destino do PDF. Padrão: `output/ID/ID.pdf`. Exige extensão `.pdf`. |
+| `--resume` | Retoma uma captura incompleta. Abre o navegador e aguarda a confirmação. |
+| `--reuse` | Usa uma captura completa salva. Dispensa o navegador e o acesso ao Scribd. |
+| `--ocr` | Adiciona texto pesquisável e selecionável ao PDF. |
+| `--ocr-language IDIOMA` | Escolhe o idioma do OCR. Padrão: `por`. Aceita combinações, como `por+eng`. |
+| `--export-text` | Salva o texto reconhecido em um `.txt` ao lado do PDF. Exige `--ocr`. |
+| `-h`, `--help` | Mostra a ajuda. |
+
+`--resume` e `--reuse` são mutuamente exclusivos. No terminal, os parâmetros são definidos em cada comando; as preferências salvas pela interface gráfica não são aplicadas.
+
+## Arquivos gerados
+
+`ID` é o número que aparece na URL do documento. As capturas ficam sempre em `output/ID/`, relativo à pasta de onde o aplicativo foi iniciado, mesmo quando o PDF é salvo em outro destino.
+
+| Arquivo | Conteúdo |
+| --- | --- |
+| `output/ID/page_0001.png`, `page_0002.png`, ... | Imagens das páginas, numeradas na ordem do documento. |
+| `output/ID/capture.json` | Registro do documento, do total de páginas e do progresso da captura. |
+| `output/ID/ID.pdf` ou o destino escolhido | PDF montado a partir das imagens, com texto pesquisável quando o OCR é concluído. |
+| Mesmo destino e nome do PDF, com extensão `.txt` | Texto reconhecido pelo OCR, quando a exportação está ativada. Por exemplo: `livro.pdf` e `livro.txt`. |
+
+Mantenha as imagens e o `capture.json` para retomar ou reutilizar a captura. Execute o aplicativo na mesma pasta para que ele encontre esses arquivos.
+
+O TXT é salvo em UTF-8 usando a saída `--sidecar` do OCRmyPDF. Ele contém o texto reconhecido; revise possíveis erros de OCR antes de usar ou editar o conteúdo.
+
+### Interromper e continuar
+
+- **Durante a captura:** clique em **Interromper** na interface ou pressione **Ctrl+C** no terminal. As páginas concluídas ficam salvas. Para continuar, use **Retomar captura** ou `--resume`.
+- **Durante o OCR:** use **Interromper** ou **Ctrl+C**. O processo de OCR é encerrado e o PDF já montado com as imagens é preservado. Um TXT parcial dessa execução não é publicado; um TXT anterior é mantido.
+- **Para tentar o OCR novamente:** use **Usar captura completa** ou `--reuse --ocr`, acrescentando `--export-text` se quiser o TXT.
+
+Na interface, **Interromper** fica temporariamente desativado durante a montagem do PDF e volta a ficar disponível na etapa de OCR. Aguarde a confirmação da interrupção antes de iniciar outra operação. Se o OCR for interrompido, os botões de abrir o PDF e sua pasta permitem acessar o arquivo preservado.
+
+### Onde ficam as preferências
+
+| Sistema | Arquivo |
+| --- | --- |
+| Linux | `~/.config/scribd-to-pdf/preferences.json`, ou `$XDG_CONFIG_HOME/scribd-to-pdf/preferences.json` quando essa variável aponta para um caminho absoluto. |
+| macOS | `~/Library/Application Support/scribd-to-pdf/preferences.json` |
+| Windows | `%APPDATA%\scribd-to-pdf\preferences.json`, com fallback para `AppData\Roaming` na pasta do usuário. |
+
+Na primeira execução, o OCR e a exportação de texto estão desativados, com português selecionado. Se as preferências estiverem ausentes ou não puderem ser lidas, a interface usa os valores padrão.
+
+## Problemas comuns
+
+| Problema | O que verificar |
+| --- | --- |
+| Comando `scribd-to-pdf` ou `scribd-to-pdf-gui` não encontrado | Entre na pasta do projeto, ative o ambiente virtual e confira a instalação com `python -m pip install -e .`. No Windows, use os caminhos completos indicados na instalação. |
+| Chromium não encontrado | Execute `python -m playwright install chromium` com o Python do ambiente virtual. No Windows, use `.\.venv\Scripts\python.exe -m playwright install chromium`. |
+| Erro ao importar `tkinter` | Instale o suporte a Tkinter para a versão de Python usada pelo ambiente virtual, conforme as instruções do seu sistema operacional. |
+| OCRmyPDF, Tesseract ou idioma não encontrado | Confira `ocrmypdf --version` e `tesseract --list-langs` no terminal usado para iniciar o aplicativo. Instale os comandos ou modelos indicados pelo erro. |
+| Captura salva não encontrada ou incompleta | Confira a pasta de execução, as imagens e o `capture.json`. Use `--resume` para uma captura incompleta e `--reuse` somente depois de concluí-la. |
+| Captura não avança no leitor | Confira se a capa carregou e se há avisos sobre o documento. O código procura o botão **Fullscreen** e o contador de páginas em inglês; mudanças no leitor podem exigir ajuste nos seletores. |
+| **Abrir PDF** ou **Abrir pasta** falha no Linux | Confira se `xdg-open` está disponível e se há um aplicativo associado a PDFs. |
+
+## Desenvolvimento
+
+Na pasta do projeto, com o ambiente virtual ativo, instale as dependências de desenvolvimento e rode os testes:
+
+```bash
+python -m pip install -e ".[dev]"
+python -m pytest -q
+```
+
+No Windows, use `.\.venv\Scripts\python.exe` no lugar de `python`. A suíte usa arquivos locais e simulações de navegador e OCR, sem acessar o Scribd.
+
+| Arquivo em `src/scribd_to_pdf/` | Responsabilidade |
+| --- | --- |
+| `cli.py`, `gui.py` | Interfaces de terminal e gráfica. |
+| `browser.py`, `capture.py`, `navigation.py` | Abertura do leitor, navegação e captura das páginas. |
+| `cache.py` | Registro do progresso e reutilização das capturas. |
+| `pdf.py` | Montagem e validação do PDF. |
+| `ocr.py` | Verificação de idiomas, OCR, interrupção e exportação de texto. |
+| `preferences.py` | Leitura e gravação das preferências da interface. |
+| `openers.py` | Abertura do PDF e da pasta pelo sistema operacional. |
+| `scribd.py`, `models.py` | Validação da URL e representação do documento. |
+
+Documentação das ferramentas: [Playwright](https://playwright.dev/python/), [OCRmyPDF](https://ocrmypdf.readthedocs.io/en/latest/), [Tesseract](https://tesseract-ocr.github.io/tessdoc/).
+
+## Licença
+
+[MIT](LICENSE) — Copyright (c) 2026 João Mário Abreu.

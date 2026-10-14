@@ -1,4 +1,5 @@
 import json
+import stat
 import sys
 from pathlib import Path
 
@@ -153,3 +154,13 @@ def test_previous_preferences_format_loads_without_export_enabled(tmp_path):
         export_text=False,
         compact_pdf=False,
     )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Permissões POSIX.")
+def test_preferences_stay_private(tmp_path):
+    path = tmp_path / "config" / "preferences.json"
+
+    save_preferences(Preferences(), path)
+
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700

@@ -8,6 +8,7 @@ from scribd_to_pdf.infrastructure.files import write_text_atomically
 
 FILE_NAME = "preferences.json"
 PRIVATE_DIRECTORY_MODE = 0o700
+PRIVATE_FILE_MODE = 0o600
 
 
 @dataclass(frozen=True)
@@ -46,6 +47,7 @@ def save_preferences(preferences: Preferences, path: Path | None = None) -> None
         path or get_preferences_path(),
         json.dumps(asdict(preferences), ensure_ascii=False, indent=2) + "\n",
         directory_mode=PRIVATE_DIRECTORY_MODE,
+        file_mode=PRIVATE_FILE_MODE,
     )
 
 

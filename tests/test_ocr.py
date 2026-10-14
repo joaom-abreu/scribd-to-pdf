@@ -1,5 +1,6 @@
 import os
 import signal
+import stat
 import subprocess
 import sys
 import textwrap
@@ -14,6 +15,7 @@ from pypdf import PdfReader, PdfWriter
 
 from scribd_to_pdf.infrastructure import ocr as ocr_module
 from scribd_to_pdf.application.errors import ConversionError
+from scribd_to_pdf.infrastructure.files import DEFAULT_FILE_MODE
 from scribd_to_pdf.infrastructure.ocr import OcrError, OcrMyPdfRecognizer, add_ocr, check_ocr_available
 
 FINISHED_PROCESS_STATES = {"Z", "X"}
@@ -594,3 +596,21 @@ def test_recognizer_keeps_interruptions(pdf_path):
         OcrMyPdfRecognizer().recognize(
             pdf_path, "por", text_path=None, should_cancel=lambda: True,
         )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Permissões POSIX.")
+def test_ocr_outputs_follow_the_umask(pdf_path, monkeypatch):
+    text_path = pdf_path.with_suffix(".txt")
+
+    def private_outputs(command, **kwargs):
+        simulate_export(command)
+        Path(command[-1]).chmod(0o600)
+        Path(command[command.index("--sidecar") + 1]).chmod(0o600)
+        return finished_process()
+
+    monkeypatch.setattr(ocr_module.subprocess, "Popen", private_outputs)
+
+    add_ocr(pdf_path, text_path=text_path)
+
+    assert stat.S_IMODE(pdf_path.stat().st_mode) == DEFAULT_FILE_MODE
+    assert stat.S_IMODE(text_path.stat().st_mode) == DEFAULT_FILE_MODE

@@ -11,6 +11,7 @@ from pypdf.errors import PdfReadError
 from scribd_to_pdf.application.errors import ConversionError
 from scribd_to_pdf.domain.cancellation import ShouldCancel, never_cancel, raise_if_cancelled
 from scribd_to_pdf.domain.languages import DEFAULT_LANGUAGE, describe_language, normalize_languages
+from scribd_to_pdf.infrastructure.files import DEFAULT_FILE_MODE
 from scribd_to_pdf.infrastructure.pdf import count_pages
 
 OCR_INTERRUPTED = "OCR interrompido. O PDF com as imagens foi preservado."
@@ -229,10 +230,13 @@ def _validate(outputs: _OcrOutputs, expected_pages: int) -> None:
 
 
 def _publish(outputs: _OcrOutputs, pdf_path: Path, text_path: Path | None) -> None:
+    outputs.pdf.chmod(DEFAULT_FILE_MODE)
+
     if outputs.text is None or text_path is None:
         outputs.pdf.replace(pdf_path)
         return
 
+    outputs.text.chmod(DEFAULT_FILE_MODE)
     had_text = text_path.exists()
 
     if had_text:

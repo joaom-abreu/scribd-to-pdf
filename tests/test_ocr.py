@@ -335,7 +335,11 @@ def test_interrupt_stops_running_process_and_preserves_pdf(
     monkeypatch.setattr(ocr_module.subprocess, "Popen", start)
 
     with pytest.raises(interrupt):
-        add_ocr(pdf_path, should_cancel=should_cancel, export_text=export_text)
+        add_ocr(
+            pdf_path,
+            text_path=text_path if export_text else None,
+            should_cancel=should_cancel,
+        )
 
     assert marker.exists(), "O processo de teste não chegou a iniciar."
     assert processes[0].poll() is not None
@@ -449,7 +453,7 @@ def test_export_saves_txt_next_to_pdf(pdf_path, monkeypatch, previous, recognize
         lambda command, **kwargs: simulate_export(command, recognized),
     )
 
-    assert add_ocr(pdf_path, export_text=True) == pdf_path.resolve()
+    assert add_ocr(pdf_path, text_path=text_path) == pdf_path.resolve()
     assert text_path.read_text(encoding="utf-8") == recognized
     assert len(PdfReader(pdf_path).pages) == 2
     assert set(pdf_path.parent.iterdir()) == {pdf_path, text_path}
@@ -484,7 +488,7 @@ def test_invalid_export_preserves_previous_files(pdf_path, monkeypatch, failure)
     monkeypatch.setattr(ocr_module.subprocess, "Popen", start)
 
     with pytest.raises(OcrError):
-        add_ocr(pdf_path, export_text=True)
+        add_ocr(pdf_path, text_path=text_path)
 
     assert pdf_path.read_bytes() == original_pdf
     assert text_path.read_bytes() == original_text
@@ -515,7 +519,7 @@ def test_cancel_while_validating_text_preserves_previous_files(
     )
 
     with pytest.raises(InterruptedError):
-        add_ocr(pdf_path, export_text=True, should_cancel=cancelled.is_set)
+        add_ocr(pdf_path, text_path=text_path, should_cancel=cancelled.is_set)
 
     assert pdf_path.read_bytes() == original_pdf
     assert text_path.read_text(encoding="utf-8") == "Texto anterior."
@@ -549,7 +553,7 @@ def test_publish_failure_restores_previous_files(
     )
 
     with pytest.raises(OcrError):
-        add_ocr(pdf_path, export_text=True)
+        add_ocr(pdf_path, text_path=text_path)
 
     assert pdf_path.read_bytes() == original_pdf
     assert set(pdf_path.parent.iterdir()) == original_files
@@ -569,7 +573,7 @@ def test_disabled_export_keeps_existing_text(pdf_path, monkeypatch):
 
     monkeypatch.setattr(ocr_module.subprocess, "Popen", start)
 
-    add_ocr(pdf_path, export_text=False)
+    add_ocr(pdf_path)
 
     assert text_path.read_text(encoding="utf-8") == "Texto editado pelo usuário."
     assert set(pdf_path.parent.iterdir()) == {pdf_path, text_path}

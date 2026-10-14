@@ -59,8 +59,8 @@ class ConversionResult:
 
 
 class OcrInterrupted(InterruptedError):
-    def __init__(self, pdf_path: Path) -> None:
-        super().__init__("OCR interrompido. O PDF com as imagens foi preservado.")
+    def __init__(self, pdf_path: Path, message: str) -> None:
+        super().__init__(message)
         self.pdf_path = pdf_path
 
 
@@ -97,22 +97,20 @@ def convert(
     if request.ocr_language is None:
         return ConversionResult(pdf_path)
 
+    text_path = request.text_path.resolve() if request.text_path is not None else None
     on_progress(Stage.OCR, f"Aplicando OCR ({request.ocr_language})...")
 
     try:
         add_ocr(
             pdf_path,
             request.ocr_language,
+            text_path=text_path,
             should_cancel=should_cancel,
-            export_text=request.export_text,
         )
     except InterruptedError as error:
-        raise OcrInterrupted(pdf_path) from error
+        raise OcrInterrupted(pdf_path, str(error)) from error
 
-    return ConversionResult(
-        pdf_path,
-        pdf_path.with_suffix(".txt") if request.export_text else None,
-    )
+    return ConversionResult(pdf_path, text_path)
 
 
 def _collect_pages(

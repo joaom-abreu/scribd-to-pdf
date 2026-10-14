@@ -20,6 +20,7 @@ from scribd_to_pdf.ui import gui as gui_module
 from scribd_to_pdf.ui.gui import Application
 
 URL = "https://www.scribd.com/document/123/livro"
+OCR_INTERRUPTED = "OCR interrompido. O PDF com as imagens foi preservado."
 WIDGETS = (
     "url_entry",
     "destination_entry",
@@ -268,7 +269,7 @@ def test_finished_conversion_enables_result_buttons(application, monkeypatch, tm
 
 def test_interrupted_ocr_keeps_pdf_accessible(application, monkeypatch, tmp_path):
     pdf_path = tmp_path / "livro.pdf"
-    monkeypatch.setattr(gui_module, "convert", Mock(side_effect=OcrInterrupted(pdf_path)))
+    monkeypatch.setattr(gui_module, "convert", Mock(side_effect=OcrInterrupted(pdf_path, OCR_INTERRUPTED)))
     application.running = True
 
     application._convert(Mock())

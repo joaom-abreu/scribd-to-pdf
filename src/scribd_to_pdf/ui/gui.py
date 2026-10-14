@@ -414,7 +414,7 @@ class Application:
                 should_cancel=self.cancel_event.is_set,
             )
         except OcrInterrupted as interruption:
-            self._call_on_ui(self._on_ocr_interrupted, interruption.pdf_path)
+            self._call_on_ui(self._on_ocr_interrupted, interruption)
         except InterruptedError:
             self._call_on_ui(self._on_interrupted)
         except Exception as error:
@@ -459,10 +459,10 @@ class Application:
         if result.text_path is not None:
             self._log(f"Texto salvo em: {result.text_path}")
 
-    def _on_ocr_interrupted(self, pdf_path: Path) -> None:
-        self._finish(pdf_path)
-        self._log("OCR interrompido. O PDF com as imagens foi preservado.")
-        self._log(f"PDF salvo em: {pdf_path}")
+    def _on_ocr_interrupted(self, interruption: OcrInterrupted) -> None:
+        self._finish(interruption.pdf_path)
+        self._log(str(interruption))
+        self._log(f"PDF salvo em: {interruption.pdf_path}")
         self._log("Para aplicar OCR novamente, escolha Usar captura completa.")
 
     def _on_interrupted(self) -> None:

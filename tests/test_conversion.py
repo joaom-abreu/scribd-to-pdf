@@ -89,8 +89,9 @@ def test_ocr_runs_after_pdf_and_reports_text(saved_capture, tmp_path, monkeypatc
     pdf_path = (tmp_path / "livro.pdf").resolve()
     add_ocr.assert_called_once()
     assert add_ocr.call_args.args == (pdf_path, "por+eng")
-    assert add_ocr.call_args.kwargs["export_text"] is export_text
-    assert result.text_path == (pdf_path.with_suffix(".txt") if export_text else None)
+    text_path = pdf_path.with_suffix(".txt") if export_text else None
+    assert add_ocr.call_args.kwargs["text_path"] == text_path
+    assert result.text_path == text_path
     assert progress[-1][0] is Stage.OCR
 
 
@@ -105,6 +106,7 @@ def test_interrupted_ocr_reports_preserved_pdf(saved_capture, tmp_path, monkeypa
     with pytest.raises(OcrInterrupted) as interruption:
         run(request)
 
+    assert str(interruption.value) == "OCR interrompido."
     assert interruption.value.pdf_path == (tmp_path / "livro.pdf").resolve()
     assert interruption.value.pdf_path.is_file()
 

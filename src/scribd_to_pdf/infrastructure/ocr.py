@@ -63,8 +63,8 @@ def add_ocr(
     pdf_path: Path,
     language: str = DEFAULT_LANGUAGE,
     *,
+    text_path: Path | None = None,
     should_cancel: ShouldCancel = never_cancel,
-    export_text: bool = False,
 ) -> Path:
     raise_if_cancelled(should_cancel, OCR_INTERRUPTED)
     executable = check_ocr_available(language)
@@ -72,7 +72,7 @@ def add_ocr(
     expected_pages = count_pages(pdf_path)
 
     with TemporaryDirectory(prefix="ocr-", dir=pdf_path.parent) as directory:
-        outputs = _OcrOutputs(Path(directory), export_text)
+        outputs = _OcrOutputs(Path(directory), export_text=text_path is not None)
         command = _build_command(executable, normalize_languages(language), pdf_path, outputs)
 
         _run(command, should_cancel)
@@ -80,7 +80,7 @@ def add_ocr(
         raise_if_cancelled(should_cancel, OCR_INTERRUPTED)
 
         try:
-            _publish(outputs, pdf_path)
+            _publish(outputs, pdf_path, text_path)
         except OSError as error:
             raise OcrError(
                 "Não foi possível salvar o resultado do OCR. O PDF anterior foi preservado."
@@ -227,12 +227,11 @@ def _validate(outputs: _OcrOutputs, expected_pages: int) -> None:
         ) from error
 
 
-def _publish(outputs: _OcrOutputs, pdf_path: Path) -> None:
-    if outputs.text is None:
+def _publish(outputs: _OcrOutputs, pdf_path: Path, text_path: Path | None) -> None:
+    if outputs.text is None or text_path is None:
         outputs.pdf.replace(pdf_path)
         return
 
-    text_path = pdf_path.with_suffix(".txt")
     had_text = text_path.exists()
 
     if had_text:

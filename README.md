@@ -209,3 +209,54 @@ Os testes utilizam imagens geradas localmente e arquivos temporários.
 Verificam a geração do PDF, a ordem das páginas, a preservação de
 arquivos após falhas e a validação do progresso salvo para retomar
 ou reutilizar capturas.
+
+## OCR opcional
+
+Use `--ocr` para gerar um PDF com texto pesquisável e selecionável.
+O idioma padrão é português.
+
+Escolha o idioma com `--ocr-language`:
+
+| Idioma | Código |
+| --- | --- |
+| Português | `por` |
+| Inglês | `eng` |
+| Espanhol | `spa` |
+| Francês | `fra` |
+| Alemão | `deu` |
+
+Para documentos com mais de um idioma, combine os códigos com `+`,
+como `por+eng` ou `fra+deu`.
+
+O OCR exige o comando `ocrmypdf` e os modelos dos idiomas escolhidos
+instalados no sistema.
+
+No Fedora:
+
+```bash
+sudo dnf install ocrmypdf tesseract-osd \
+    tesseract-langpack-por tesseract-langpack-eng \
+    tesseract-langpack-spa tesseract-langpack-fra tesseract-langpack-deu
+```
+
+Para outros sistemas, siga o
+[guia de instalação do OCRmyPDF](https://ocrmypdf.readthedocs.io/en/latest/installation.html).
+
+Confira a instalação:
+
+```bash
+ocrmypdf --version
+tesseract --list-langs
+```
+
+Exemplo usando páginas já capturadas de um livro em inglês:
+
+```bash
+scribd-to-pdf "https://www.scribd.com/document/629060068/the-metamorphosis-franz-kafka" --reuse --ocr --ocr-language eng
+```
+
+O PDF mantém o caminho escolhido por `--output` ou o caminho padrão.
+Se o OCR falhar, o PDF gerado com as imagens permanece disponível.
+
+A precisão do texto reconhecido depende da qualidade das imagens
+e do idioma escolhido. Revise o texto copiado antes de usá-lo em citações.

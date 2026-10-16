@@ -5,7 +5,6 @@ from scribd_to_pdf.application.errors import ConversionError
 from scribd_to_pdf.domain.capture import CaptureProgress
 from scribd_to_pdf.domain.document import Document
 from scribd_to_pdf.infrastructure.directories import user_data_directory
-from scribd_to_pdf.infrastructure.files import write_text_atomically
 
 CAPTURES_DIRECTORY = "captures"
 MANIFEST_NAME = "capture.json"
@@ -44,9 +43,10 @@ class CaptureStore:
             "total_pages": progress.total_pages,
             "captured_pages": sorted(progress.captured_pages),
         }
-        write_text_atomically(
-            self.manifest_path,
+        self.directory.mkdir(parents=True, exist_ok=True)
+        self.manifest_path.write_text(
             json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
         )
 
     def load_progress(self) -> CaptureProgress:

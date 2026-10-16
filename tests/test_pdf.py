@@ -1,5 +1,3 @@
-import stat
-import sys
 from pathlib import Path
 
 import pytest
@@ -7,8 +5,6 @@ from PIL import Image
 from pypdf import PdfReader
 
 from scribd_to_pdf.application.errors import ConversionError
-from scribd_to_pdf.infrastructure import pdf as pdf_module
-from scribd_to_pdf.infrastructure.files import DEFAULT_FILE_MODE
 from scribd_to_pdf.infrastructure.pdf import Img2PdfBuilder, count_pages, create_pdf
 
 PAGE_COLORS = (
@@ -69,29 +65,6 @@ def test_rejects_missing_page_file(tmp_path: Path, page_images: list[Path]):
     assert not output.exists()
 
 
-def test_failure_keeps_previous_pdf_and_removes_temporary_file(
-    tmp_path: Path,
-    page_images: list[Path],
-    monkeypatch: pytest.MonkeyPatch,
-):
-    output = tmp_path / "livro.pdf"
-    create_pdf(page_images, output)
-    previous_pdf = output.read_bytes()
-    previous_files = set(tmp_path.iterdir())
-
-    def failing_convert(*args, **kwargs):
-        kwargs["outputstream"].write(b"PDF incompleto")
-        raise RuntimeError("Falha simulada")
-
-    monkeypatch.setattr(pdf_module.img2pdf, "convert", failing_convert)
-
-    with pytest.raises(RuntimeError, match="Falha simulada"):
-        create_pdf(page_images, output)
-
-    assert output.read_bytes() == previous_pdf
-    assert set(tmp_path.iterdir()) == previous_files
-
-
 def test_builder_reports_failures_as_conversion_error(tmp_path: Path, page_images: list[Path]):
     page_images[1].unlink()
 
@@ -143,10 +116,3 @@ def test_compact_keeps_captured_images(tmp_path: Path, mixed_pages: list[Path]):
     Img2PdfBuilder().build(mixed_pages, tmp_path / "livro.pdf", compact=True)
 
     assert [path.read_bytes() for path in mixed_pages] == originals
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="Permissões POSIX.")
-def test_pdf_permissions_follow_the_umask(tmp_path: Path, page_images: list[Path]):
-    output = create_pdf(page_images, tmp_path / "livro.pdf")
-
-    assert stat.S_IMODE(output.stat().st_mode) == DEFAULT_FILE_MODE

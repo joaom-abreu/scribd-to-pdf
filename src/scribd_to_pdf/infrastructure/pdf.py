@@ -7,7 +7,6 @@ from pypdf import PdfReader
 from pypdf.errors import PdfReadError
 
 from scribd_to_pdf.application.errors import ConversionError
-from scribd_to_pdf.infrastructure.files import atomic_target
 
 COMPACT_JPEG_QUALITY = 85
 PDF_ERRORS = (
@@ -40,14 +39,15 @@ def create_pdf(image_paths: list[Path], output_path: Path, *, compact: bool = Fa
 
     pages = [_compact_page(path) if compact else str(path) for path in image_paths]
 
-    with atomic_target(output_path) as temporary:
-        with temporary.open("wb") as stream:
-            img2pdf.convert(pages, outputstream=stream)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        page_count = count_pages(temporary)
+    with output_path.open("wb") as stream:
+        img2pdf.convert(pages, outputstream=stream)
 
-        if page_count != len(image_paths):
-            raise ValueError(f"PDF com {page_count} páginas; esperado: {len(image_paths)}.")
+    page_count = count_pages(output_path)
+
+    if page_count != len(image_paths):
+        raise ValueError(f"PDF com {page_count} páginas; esperado: {len(image_paths)}.")
 
     return output_path
 

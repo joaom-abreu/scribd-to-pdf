@@ -127,14 +127,6 @@ def test_loads_legacy_manifest(store: CaptureStore, document: Document):
     assert store.load_complete_capture() == store.page_paths(3)
 
 
-def test_saving_progress_leaves_no_temporary_files(store: CaptureStore):
-    files_before = set(store.directory.iterdir())
-
-    store.save_progress(complete(3))
-
-    assert set(store.directory.iterdir()) == files_before | {store.manifest_path}
-
-
 def test_progress_rejects_page_outside_total():
     with pytest.raises(ValueError):
         CaptureProgress(2, frozenset({3}))

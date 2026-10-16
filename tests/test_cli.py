@@ -18,7 +18,8 @@ URL = "https://www.scribd.com/document/123/livro"
 
 @pytest.fixture
 def converter(tmp_path):
-    real = DocumentConverter(FileCaptureRepository(tmp_path / "capturas"), Mock(), Mock(), Mock(), tmp_path / "pdfs")
+    captures = FileCaptureRepository(tmp_path / "capturas")
+    real = DocumentConverter(captures, Mock(), Mock(), Mock(), tmp_path / "pdfs")
     mock = Mock(wraps=real)
     mock.convert.return_value = ConversionResult(tmp_path / "livro.pdf")
     return mock
@@ -101,8 +102,11 @@ def test_default_output_uses_default_folder(cli, convert, check_requirements, tm
     assert convert.call_args.args[0].output_path == tmp_path / "pdfs" / "123.pdf"
 
 
-@pytest.mark.parametrize("arguments, captures_dir", [([], None), (["--captures-dir", "capturas"], Path("capturas"))])
-def test_captures_dir_is_passed_to_converter(cli, converter_factory, convert, check_requirements, arguments, captures_dir):
+@pytest.mark.parametrize(
+    "arguments, captures_dir",
+    [([], None), (["--captures-dir", "capturas"], Path("capturas"))],
+)
+def test_captures_dir_is_passed_to_converter(cli, converter_factory, arguments, captures_dir):
     cli([URL, *arguments])
 
     converter_factory.assert_called_once_with(captures_dir)

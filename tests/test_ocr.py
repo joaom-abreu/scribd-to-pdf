@@ -163,7 +163,7 @@ def test_export_saves_txt_next_to_pdf(pdf_path, monkeypatch, previous, recognize
     assert set(pdf_path.parent.iterdir()) == {pdf_path, text_path}
 
 
-def test_disabled_export_keeps_existing_text(pdf_path, monkeypatch):
+def test_ocr_without_export_keeps_existing_text(pdf_path, monkeypatch):
     text_path = pdf_path.with_suffix(".txt")
     text_path.write_text("Texto editado pelo usuário.", encoding="utf-8")
 

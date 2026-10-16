@@ -24,7 +24,7 @@ def capture(tmp_path: Path) -> list[Path]:
     )
 
 
-def test_capturer_uses_the_document_store(tmp_path, monkeypatch):
+def test_capturer_saves_pages_in_the_document_folder(tmp_path, monkeypatch):
     capture_document = Mock(return_value=[tmp_path / "page_0001.png"])
     monkeypatch.setattr(reader_module, "capture_document", capture_document)
 
@@ -137,7 +137,7 @@ def browser_page():
 COUNTER = "<div><div><span>You are on page</span><span>{current}</span><span>{total}</span></div></div>"
 
 
-def test_counter_ignores_hidden_copies_and_nesting(browser_page):
+def test_page_counter_ignores_hidden_copies_and_nesting(browser_page):
     browser_page.set_content(
         f'<div style="display: none">{COUNTER.format(current=9, total=99)}</div>'
         f"<header>{COUNTER.format(current=3, total=120)}</header>"
@@ -146,7 +146,7 @@ def test_counter_ignores_hidden_copies_and_nesting(browser_page):
     assert ScribdReader(browser_page).count_pages() == 120
 
 
-def test_counter_rejects_unexpected_values(browser_page):
+def test_page_counter_rejects_current_page_above_total(browser_page):
     browser_page.set_content(COUNTER.format(current=7, total=5))
 
     with pytest.raises(ValueError, match="inválidos"):

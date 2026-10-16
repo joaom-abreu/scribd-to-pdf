@@ -78,7 +78,7 @@ def test_reuse_builds_pdf_without_opening_browser(harness, tmp_path):
 
 
 @pytest.mark.parametrize("mode, resume", [(CaptureMode.NEW, False), (CaptureMode.RESUME, True)])
-def test_capture_modes_use_the_browser(harness, tmp_path, mode, resume):
+def test_new_and_resume_modes_capture_with_the_browser(harness, tmp_path, mode, resume):
     harness.capturer.capture.return_value = harness.store.page_paths(2)
     wait_for_ready = Mock()
 
@@ -112,7 +112,7 @@ def test_capture_status_is_forwarded_to_progress(harness, tmp_path):
 
 
 @pytest.mark.parametrize("export_text", [False, True])
-def test_ocr_runs_after_pdf_and_reports_text(harness, tmp_path, export_text):
+def test_ocr_runs_after_pdf_and_returns_text_path(harness, tmp_path, export_text):
     request = ConversionRequest(
         DOCUMENT,
         tmp_path / "livro.pdf",

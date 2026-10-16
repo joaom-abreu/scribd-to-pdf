@@ -91,7 +91,8 @@ def mixed_pages(tmp_path: Path) -> list[Path]:
 
     with Image.radial_gradient("L").resize((512, 512)) as gradient, \
             Image.effect_noise((512, 512), 48) as noise:
-        Image.merge("RGB", (gradient, noise, gradient.transpose(Image.Transpose.ROTATE_90))).save(illustration)
+        rotated = gradient.transpose(Image.Transpose.ROTATE_90)
+        Image.merge("RGB", (gradient, noise, rotated)).save(illustration)
 
     with Image.new("RGB", (512, 512), color="white") as image:
         image.paste((0, 0, 0), (40, 40, 470, 44))
@@ -110,7 +111,7 @@ def test_compact_uses_jpeg_only_where_it_is_smaller(tmp_path: Path, mixed_pages:
     assert len(PdfReader(compact).pages) == 2
 
 
-def test_compact_keeps_captured_images(tmp_path: Path, mixed_pages: list[Path]):
+def test_compact_does_not_modify_captured_images(tmp_path: Path, mixed_pages: list[Path]):
     originals = [path.read_bytes() for path in mixed_pages]
 
     Img2PdfBuilder().build(mixed_pages, tmp_path / "livro.pdf", compact=True)

@@ -134,11 +134,13 @@ def test_conversion_error_exits_with_message(cli, convert, check_requirements, c
     assert capsys.readouterr().err == "Erro: Falha no navegador: tempo esgotado.\n"
 
 
-def test_keyboard_interrupt_exits_with_130(cli, convert, check_requirements, capsys):
+def test_keyboard_interrupt_exits_with_130_and_suggests_resume(cli, convert, check_requirements, capsys):
     convert.side_effect = KeyboardInterrupt
 
     with pytest.raises(SystemExit) as error:
         cli([URL])
 
     assert error.value.code == 130
-    assert "interrompida" in capsys.readouterr().err
+    message = capsys.readouterr().err
+    assert "interrompida" in message
+    assert "--resume" in message

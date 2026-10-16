@@ -10,8 +10,6 @@ from scribd_to_pdf.application.conversion import (
     ConversionRequest,
     ConversionResult,
     DocumentConverter,
-    OcrInterrupted,
-    Stage,
 )
 from scribd_to_pdf.domain.capture import CaptureProgress
 from scribd_to_pdf.domain.document import Document
@@ -58,10 +56,10 @@ def run(
         harness: Harness,
         request: ConversionRequest,
         **overrides,
-) -> tuple[ConversionResult, list[tuple[Stage, str]]]:
-    progress: list[tuple[Stage, str]] = []
+) -> tuple[ConversionResult, list[str]]:
+    progress: list[str] = []
     options = {
-        "on_progress": lambda stage, message: progress.append((stage, message)),
+        "on_progress": progress.append,
         "wait_for_ready": Mock(),
         **overrides,
     }
@@ -76,7 +74,7 @@ def test_reuse_builds_pdf_without_opening_browser(harness, tmp_path):
     harness.capturer.capture.assert_not_called()
     assert result == ConversionResult((tmp_path / "livro.pdf").resolve())
     assert count_pages(result.pdf_path) == 2
-    assert [stage for stage, _ in progress] == [Stage.CAPTURE, Stage.PDF]
+    assert progress == ["Reutilizando 2 páginas salvas.", "Gerando PDF com 2 páginas..."]
 
 
 @pytest.mark.parametrize("mode, resume", [(CaptureMode.NEW, False), (CaptureMode.RESUME, True)])
@@ -98,10 +96,10 @@ def test_compact_option_reaches_pdf_builder(harness, tmp_path, compact):
     _, progress = run(harness, request)
 
     assert harness.pdf_builder.build.call_args.kwargs["compact"] is compact
-    assert ("PDF compacto" in progress[-1][1]) is compact
+    assert ("PDF compacto" in progress[-1]) is compact
 
 
-def test_capture_status_is_reported_as_capture_stage(harness, tmp_path):
+def test_capture_status_is_forwarded_to_progress(harness, tmp_path):
     def capture(document, *, on_status, **kwargs):
         on_status("Capturando página 1 de 2...")
         return harness.store.page_paths(2)
@@ -110,7 +108,7 @@ def test_capture_status_is_reported_as_capture_stage(harness, tmp_path):
 
     _, progress = run(harness, ConversionRequest(DOCUMENT, tmp_path / "livro.pdf"))
 
-    assert progress[0] == (Stage.CAPTURE, "Capturando página 1 de 2...")
+    assert progress[0] == "Capturando página 1 de 2..."
 
 
 @pytest.mark.parametrize("export_text", [False, True])
@@ -132,28 +130,7 @@ def test_ocr_runs_after_pdf_and_reports_text(harness, tmp_path, export_text):
     assert recognize.call_args.args == (pdf_path, "por+eng")
     assert recognize.call_args.kwargs["text_path"] == text_path
     assert result.text_path == text_path
-    assert progress[-1][0] is Stage.OCR
-
-
-def test_interrupted_ocr_reports_preserved_pdf(harness, tmp_path):
-    harness.text_recognizer.recognize.side_effect = InterruptedError("OCR interrompido.")
-    request = ConversionRequest(DOCUMENT, tmp_path / "livro.pdf", CaptureMode.REUSE, ocr_language="por")
-
-    with pytest.raises(OcrInterrupted) as interruption:
-        run(harness, request)
-
-    assert str(interruption.value) == "OCR interrompido."
-    assert interruption.value.pdf_path == (tmp_path / "livro.pdf").resolve()
-    assert interruption.value.pdf_path.is_file()
-
-
-def test_cancellation_before_pdf_creates_nothing(harness, tmp_path):
-    request = ConversionRequest(DOCUMENT, tmp_path / "livro.pdf", CaptureMode.REUSE)
-
-    with pytest.raises(InterruptedError):
-        run(harness, request, should_cancel=lambda: True)
-
-    harness.pdf_builder.build.assert_not_called()
+    assert progress[-1] == "Aplicando OCR (por+eng)..."
 
 
 @pytest.mark.parametrize(

@@ -1,6 +1,4 @@
-import os
 import shutil
-import signal
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -9,15 +7,11 @@ from tempfile import TemporaryDirectory
 from pypdf.errors import PdfReadError
 
 from scribd_to_pdf.application.errors import ConversionError
-from scribd_to_pdf.domain.cancellation import ShouldCancel, never_cancel, raise_if_cancelled
 from scribd_to_pdf.domain.languages import DEFAULT_LANGUAGE, describe_language, normalize_languages
 from scribd_to_pdf.infrastructure.files import DEFAULT_FILE_MODE
 from scribd_to_pdf.infrastructure.pdf import count_pages
 
-OCR_INTERRUPTED = "OCR interrompido. O PDF com as imagens foi preservado."
 LIST_LANGUAGES_TIMEOUT_SECONDS = 5
-POLL_INTERVAL_SECONDS = 0.2
-STOP_TIMEOUT_SECONDS = 3
 LANGUAGE_LIST_HEADER = "List of available languages"
 
 
@@ -66,9 +60,7 @@ def add_ocr(
     language: str = DEFAULT_LANGUAGE,
     *,
     text_path: Path | None = None,
-    should_cancel: ShouldCancel = never_cancel,
 ) -> Path:
-    raise_if_cancelled(should_cancel, OCR_INTERRUPTED)
     executable = check_ocr_available(language)
     pdf_path = pdf_path.resolve()
     expected_pages = count_pages(pdf_path)
@@ -77,9 +69,15 @@ def add_ocr(
         outputs = _OcrOutputs(Path(directory), export_text=text_path is not None)
         command = _build_command(executable, normalize_languages(language), pdf_path, outputs)
 
-        _run(command, should_cancel)
+        try:
+            subprocess.run(command, check=True)
+        except subprocess.CalledProcessError as error:
+            raise OcrError(
+                f"O OCR falhou (código {error.returncode}). O PDF anterior foi preservado. "
+                "Confira as mensagens acima e os idiomas disponíveis com 'tesseract --list-langs'."
+            ) from error
+
         _validate(outputs, expected_pages)
-        raise_if_cancelled(should_cancel, OCR_INTERRUPTED)
 
         try:
             _publish(outputs, pdf_path, text_path)
@@ -137,78 +135,6 @@ def _build_command(executable: str, language: str, source: Path, outputs: _OcrOu
     return [*command, str(source), str(outputs.pdf)]
 
 
-def _run(command: list[str], should_cancel: ShouldCancel) -> None:
-    raise_if_cancelled(should_cancel, OCR_INTERRUPTED)
-    process = subprocess.Popen(command, start_new_session=os.name == "posix")
-
-    try:
-        returncode = _wait(process, should_cancel)
-    except BaseException:
-        _stop(process)
-        raise
-
-    if returncode != 0:
-        raise OcrError(
-            f"O OCR falhou (código {returncode}). O PDF anterior foi preservado. "
-            "Confira as mensagens acima e os idiomas disponíveis com 'tesseract --list-langs'."
-        )
-
-
-def _wait(process: subprocess.Popen, should_cancel: ShouldCancel) -> int:
-    while True:
-        raise_if_cancelled(should_cancel, OCR_INTERRUPTED)
-
-        try:
-            return process.wait(timeout=POLL_INTERVAL_SECONDS)
-        except subprocess.TimeoutExpired:
-            pass
-
-
-def _stop(process: subprocess.Popen) -> None:
-    if os.name == "posix":
-        _stop_process_group(process)
-    else:
-        _stop_process_tree(process)
-
-
-def _stop_process_group(process: subprocess.Popen) -> None:
-    _signal_group(process, signal.SIGTERM)
-
-    try:
-        process.wait(timeout=STOP_TIMEOUT_SECONDS)
-    except subprocess.TimeoutExpired:
-        pass
-    finally:
-        _signal_group(process, signal.SIGKILL)
-
-    process.wait()
-
-
-def _signal_group(process: subprocess.Popen, signal_number: int) -> None:
-    try:
-        os.killpg(process.pid, signal_number)
-    except ProcessLookupError:
-        pass
-
-
-def _stop_process_tree(process: subprocess.Popen) -> None:
-    try:
-        subprocess.run(
-            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
-            check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=STOP_TIMEOUT_SECONDS,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        pass
-
-    if process.poll() is None:
-        process.kill()
-
-    process.wait()
-
-
 def _validate(outputs: _OcrOutputs, expected_pages: int) -> None:
     try:
         page_count = count_pages(outputs.pdf)
@@ -258,17 +184,8 @@ class OcrMyPdfRecognizer:
     def check_available(self, language: str) -> None:
         check_ocr_available(language)
 
-    def recognize(
-        self,
-        pdf_path: Path,
-        language: str,
-        *,
-        text_path: Path | None,
-        should_cancel: ShouldCancel,
-    ) -> None:
+    def recognize(self, pdf_path: Path, language: str, *, text_path: Path | None) -> None:
         try:
-            add_ocr(pdf_path, language, text_path=text_path, should_cancel=should_cancel)
-        except InterruptedError:
-            raise
+            add_ocr(pdf_path, language, text_path=text_path)
         except (OSError, PdfReadError) as error:
             raise OcrError(f"Não foi possível aplicar o OCR: {error}") from error

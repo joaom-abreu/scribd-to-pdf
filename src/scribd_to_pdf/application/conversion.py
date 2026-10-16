@@ -10,10 +10,7 @@ from scribd_to_pdf.application.ports import (
     ReadySignal,
     TextRecognizer,
 )
-from scribd_to_pdf.domain.cancellation import ShouldCancel, never_cancel, raise_if_cancelled
 from scribd_to_pdf.domain.document import Document
-
-CONVERSION_INTERRUPTED = "Conversão interrompida."
 
 
 class CaptureMode(Enum):
@@ -22,17 +19,7 @@ class CaptureMode(Enum):
     REUSE = auto()
 
 
-class Stage(Enum):
-    CAPTURE = auto()
-    PDF = auto()
-    OCR = auto()
-
-    @property
-    def cancellable(self) -> bool:
-        return self is not Stage.PDF
-
-
-ProgressListener = Callable[[Stage, str], None]
+ProgressListener = Callable[[str], None]
 
 
 @dataclass(frozen=True)
@@ -60,12 +47,6 @@ class ConversionRequest:
 class ConversionResult:
     pdf_path: Path
     text_path: Path | None = None
-
-
-class OcrInterrupted(InterruptedError):
-    def __init__(self, pdf_path: Path, message: str) -> None:
-        super().__init__(message)
-        self.pdf_path = pdf_path
 
 
 @dataclass(frozen=True)
@@ -98,13 +79,11 @@ class DocumentConverter:
         *,
         on_progress: ProgressListener,
         wait_for_ready: ReadySignal,
-        should_cancel: ShouldCancel = never_cancel,
     ) -> ConversionResult:
-        image_paths = self._collect_pages(request, on_progress, wait_for_ready, should_cancel)
-        raise_if_cancelled(should_cancel, CONVERSION_INTERRUPTED)
+        image_paths = self._collect_pages(request, on_progress, wait_for_ready)
 
         description = "PDF compacto" if request.compact else "PDF"
-        on_progress(Stage.PDF, f"Gerando {description} com {len(image_paths)} páginas...")
+        on_progress(f"Gerando {description} com {len(image_paths)} páginas...")
         pdf_path = self.pdf_builder.build(
             image_paths,
             request.output_path,
@@ -115,17 +94,8 @@ class DocumentConverter:
             return ConversionResult(pdf_path)
 
         text_path = request.text_path.resolve() if request.text_path is not None else None
-        on_progress(Stage.OCR, f"Aplicando OCR ({request.ocr_language})...")
-
-        try:
-            self.text_recognizer.recognize(
-                pdf_path,
-                request.ocr_language,
-                text_path=text_path,
-                should_cancel=should_cancel,
-            )
-        except InterruptedError as error:
-            raise OcrInterrupted(pdf_path, str(error)) from error
+        on_progress(f"Aplicando OCR ({request.ocr_language})...")
+        self.text_recognizer.recognize(pdf_path, request.ocr_language, text_path=text_path)
 
         return ConversionResult(pdf_path, text_path)
 
@@ -134,17 +104,15 @@ class DocumentConverter:
         request: ConversionRequest,
         on_progress: ProgressListener,
         wait_for_ready: ReadySignal,
-        should_cancel: ShouldCancel,
     ) -> list[Path]:
         if request.mode is CaptureMode.REUSE:
             image_paths = self.captures.load_complete(request.document)
-            on_progress(Stage.CAPTURE, f"Reutilizando {len(image_paths)} páginas salvas.")
+            on_progress(f"Reutilizando {len(image_paths)} páginas salvas.")
             return image_paths
 
         return self.capturer.capture(
             request.document,
             resume=request.mode is CaptureMode.RESUME,
             wait_for_ready=wait_for_ready,
-            on_status=lambda message: on_progress(Stage.CAPTURE, message),
-            should_cancel=should_cancel,
+            on_status=on_progress,
         )

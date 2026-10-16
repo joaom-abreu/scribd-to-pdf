@@ -2,7 +2,6 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
-from scribd_to_pdf.domain.cancellation import ShouldCancel
 from scribd_to_pdf.domain.document import Document
 
 StatusListener = Callable[[str], None]
@@ -21,7 +20,6 @@ class PageCapturer(Protocol):
         resume: bool,
         wait_for_ready: ReadySignal,
         on_status: StatusListener,
-        should_cancel: ShouldCancel,
     ) -> list[Path]: ...
 
 
@@ -32,11 +30,4 @@ class PdfBuilder(Protocol):
 class TextRecognizer(Protocol):
     def check_available(self, language: str) -> None: ...
 
-    def recognize(
-        self,
-        pdf_path: Path,
-        language: str,
-        *,
-        text_path: Path | None,
-        should_cancel: ShouldCancel,
-    ) -> None: ...
+    def recognize(self, pdf_path: Path, language: str, *, text_path: Path | None) -> None: ...

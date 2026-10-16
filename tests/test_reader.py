@@ -22,7 +22,6 @@ def capture(tmp_path: Path) -> list[Path]:
         resume=False,
         wait_for_ready=Mock(),
         on_status=Mock(),
-        should_cancel=lambda: False,
     )
 
 
@@ -50,16 +49,6 @@ def test_capturer_reports_failures_as_conversion_error(tmp_path, monkeypatch, fa
         capture(tmp_path)
 
     assert error.value.__cause__ is failure
-
-
-def test_capturer_keeps_interruptions(tmp_path, monkeypatch):
-    interruption = InterruptedError("Captura interrompida.")
-    monkeypatch.setattr(reader_module, "capture_document", Mock(side_effect=interruption))
-
-    with pytest.raises(InterruptedError) as error:
-        capture(tmp_path)
-
-    assert error.value is interruption
 
 
 class FakeReader:
@@ -90,15 +79,9 @@ def store(tmp_path) -> CaptureStore:
     return store
 
 
-def capture_pages(reader: FakeReader, store: CaptureStore, total_pages: int, **options) -> list[str]:
+def capture_pages(reader: FakeReader, store: CaptureStore, total_pages: int) -> list[str]:
     messages: list[str] = []
-    reader_module._capture_pages(
-        reader,
-        store,
-        CaptureProgress(total_pages),
-        messages.append,
-        options.get("should_cancel", lambda: False),
-    )
+    reader_module._capture_pages(reader, store, CaptureProgress(total_pages), messages.append)
     return messages
 
 
@@ -121,16 +104,6 @@ def test_page_that_never_loads_keeps_previous_progress(store):
 
     assert reader.captured == [1]
     assert store.load_progress().captured_pages == frozenset({1})
-
-
-def test_cancellation_stops_retries(store):
-    reader = FakeReader({1: CAPTURE_ATTEMPTS})
-    calls = iter([False, False, True])
-
-    with pytest.raises(InterruptedError):
-        capture_pages(reader, store, 1, should_cancel=lambda: next(calls))
-
-    assert reader.pauses == [2_000]
 
 
 @pytest.fixture(scope="module")

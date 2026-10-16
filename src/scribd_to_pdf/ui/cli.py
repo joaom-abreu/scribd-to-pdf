@@ -7,7 +7,6 @@ from scribd_to_pdf.application.conversion import (
     ConversionRequest,
     ConversionResult,
     DocumentConverter,
-    Stage,
 )
 from scribd_to_pdf.application.errors import ConversionError
 from scribd_to_pdf.bootstrap import build_converter
@@ -17,6 +16,10 @@ from scribd_to_pdf.domain.languages import DEFAULT_LANGUAGE, LANGUAGES
 READY_PROMPT = (
     "\nAguarde a capa carregar e feche avisos que ainda cubram o documento."
     "\nPressione Enter para ativar Fullscreen e capturar..."
+)
+INTERRUPTED_MESSAGE = (
+    "\nOperação interrompida."
+    "\nPara continuar de onde parou, rode o mesmo comando com --resume.\n"
 )
 
 
@@ -34,7 +37,7 @@ def main(
     try:
         result = _run(args, converter_factory(args.captures_dir))
     except KeyboardInterrupt:
-        parser.exit(130, "\nOperação interrompida.\n")
+        parser.exit(130, INTERRUPTED_MESSAGE)
     except EOFError:
         parser.exit(1, "\nEntrada encerrada antes de confirmar a captura.\n")
     except (ValueError, OSError, ConversionError) as error:
@@ -58,7 +61,7 @@ def _run(args: argparse.Namespace, converter: DocumentConverter) -> ConversionRe
     )
 
     converter.check_requirements(request)
-    return converter.convert(request, on_progress=_print_progress, wait_for_ready=_wait_for_enter)
+    return converter.convert(request, on_progress=print, wait_for_ready=_wait_for_enter)
 
 
 def _capture_mode(args: argparse.Namespace) -> CaptureMode:
@@ -66,10 +69,6 @@ def _capture_mode(args: argparse.Namespace) -> CaptureMode:
         return CaptureMode.REUSE
 
     return CaptureMode.RESUME if args.resume else CaptureMode.NEW
-
-
-def _print_progress(_: Stage, message: str) -> None:
-    print(message)
 
 
 def _wait_for_enter() -> None:

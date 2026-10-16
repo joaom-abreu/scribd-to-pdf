@@ -7,7 +7,6 @@ from playwright.sync_api import Locator, Page, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from scribd_to_pdf.application.errors import ConversionError
-from scribd_to_pdf.domain.cancellation import ShouldCancel, raise_if_cancelled
 from scribd_to_pdf.domain.capture import CaptureProgress
 from scribd_to_pdf.domain.document import Document
 from scribd_to_pdf.infrastructure.storage import CaptureStore, FileCaptureRepository
@@ -27,7 +26,6 @@ CONSENT_BUTTON = re.compile(
     r"^\s*(accept|accept all|accept all cookies|accept cookies|i accept|agree|i agree|allow all|got it)\s*$",
     re.IGNORECASE,
 )
-CAPTURE_INTERRUPTED = "Captura interrompida."
 
 IMAGES_LOADED = """
 element => Array.from(element.querySelectorAll("img")).every(
@@ -116,7 +114,6 @@ class PlaywrightPageCapturer:
         resume: bool,
         wait_for_ready: Callable[[], None],
         on_status: Callable[[str], None],
-        should_cancel: ShouldCancel,
     ) -> list[Path]:
         try:
             return capture_document(
@@ -124,10 +121,7 @@ class PlaywrightPageCapturer:
                 resume=resume,
                 wait_for_ready=wait_for_ready,
                 on_status=on_status,
-                should_cancel=should_cancel,
             )
-        except InterruptedError:
-            raise
         except PlaywrightError as error:
             raise ConversionError(f"Falha no navegador: {error.message}") from error
         except (OSError, ValueError) as error:
@@ -140,10 +134,8 @@ def capture_document(
     resume: bool,
     wait_for_ready: Callable[[], None],
     on_status: Callable[[str], None],
-    should_cancel: ShouldCancel,
 ) -> list[Path]:
     previous = store.load_progress() if resume else None
-    raise_if_cancelled(should_cancel, CAPTURE_INTERRUPTED)
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=False)
@@ -160,9 +152,7 @@ def capture_document(
             if reader.dismiss_consent():
                 on_status("Aviso de privacidade fechado automaticamente.")
 
-            raise_if_cancelled(should_cancel, CAPTURE_INTERRUPTED)
             wait_for_ready()
-            raise_if_cancelled(should_cancel, CAPTURE_INTERRUPTED)
 
             reader.enter_fullscreen()
             total_pages = reader.count_pages()
@@ -170,7 +160,7 @@ def capture_document(
 
             progress = _starting_progress(store, previous, total_pages)
             store.save_progress(progress)
-            _capture_pages(reader, store, progress, on_status, should_cancel)
+            _capture_pages(reader, store, progress, on_status)
         finally:
             browser.close()
 
@@ -202,20 +192,17 @@ def _capture_pages(
     store: CaptureStore,
     progress: CaptureProgress,
     on_status: Callable[[str], None],
-    should_cancel: ShouldCancel,
 ) -> None:
     total_pages = progress.total_pages
 
     for number in range(1, total_pages + 1):
-        raise_if_cancelled(should_cancel, CAPTURE_INTERRUPTED)
-
         if number in progress.captured_pages:
             on_status(f"Reutilizando página {number} de {total_pages}...")
             reader.scroll_to(number)
             continue
 
         on_status(f"Capturando página {number} de {total_pages}...")
-        _capture_with_retries(reader, number, store.page_path(number), on_status, should_cancel)
+        _capture_with_retries(reader, number, store.page_path(number), on_status)
         progress = progress.with_page(number)
         store.save_progress(progress)
 
@@ -225,11 +212,8 @@ def _capture_with_retries(
     number: int,
     path: Path,
     on_status: Callable[[str], None],
-    should_cancel: ShouldCancel,
 ) -> None:
     for attempt in range(1, CAPTURE_ATTEMPTS + 1):
-        raise_if_cancelled(should_cancel, CAPTURE_INTERRUPTED)
-
         try:
             reader.capture(number, path)
             return

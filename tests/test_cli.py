@@ -4,8 +4,12 @@ from unittest.mock import Mock
 
 import pytest
 
-from scribd_to_pdf.application.conversion import CaptureMode, ConversionResult, DocumentConverter
-from scribd_to_pdf.application.errors import ConversionError
+from scribd_to_pdf.application.conversion import (
+    CaptureMode,
+    ConversionError,
+    ConversionResult,
+    DocumentConverter,
+)
 from scribd_to_pdf.infrastructure.storage import FileCaptureRepository
 from scribd_to_pdf.ui import cli as cli_module
 

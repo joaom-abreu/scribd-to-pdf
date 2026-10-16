@@ -6,7 +6,7 @@ from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
-from scribd_to_pdf.application.errors import ConversionError
+from scribd_to_pdf.application.conversion import ConversionError
 from scribd_to_pdf.domain.document import Document
 from scribd_to_pdf.infrastructure import reader as reader_module
 from scribd_to_pdf.infrastructure.reader import CAPTURE_ATTEMPTS, PlaywrightPageCapturer, ScribdReader

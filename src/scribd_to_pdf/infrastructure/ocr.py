@@ -3,7 +3,7 @@ import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from scribd_to_pdf.application.errors import ConversionError
+from scribd_to_pdf.application.conversion import ConversionError
 
 
 class OcrError(ConversionError):

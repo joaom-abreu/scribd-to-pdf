@@ -4,7 +4,7 @@ from pathlib import Path
 import img2pdf
 from PIL import Image
 
-from scribd_to_pdf.application.errors import ConversionError
+from scribd_to_pdf.application.conversion import ConversionError
 
 COMPACT_JPEG_QUALITY = 85
 

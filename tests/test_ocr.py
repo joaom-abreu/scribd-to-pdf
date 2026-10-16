@@ -5,7 +5,7 @@ import pytest
 from pypdf import PdfReader, PdfWriter
 
 from scribd_to_pdf.infrastructure import ocr as ocr_module
-from scribd_to_pdf.application.errors import ConversionError
+from scribd_to_pdf.application.conversion import ConversionError
 from scribd_to_pdf.infrastructure.ocr import OcrError, OcrMyPdfRecognizer, add_ocr, check_ocr_available
 
 

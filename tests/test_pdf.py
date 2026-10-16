@@ -4,7 +4,7 @@ import pytest
 from PIL import Image
 from pypdf import PdfReader
 
-from scribd_to_pdf.application.errors import ConversionError
+from scribd_to_pdf.application.conversion import ConversionError
 from scribd_to_pdf.infrastructure.pdf import Img2PdfBuilder, create_pdf
 
 PAGE_COLORS = (

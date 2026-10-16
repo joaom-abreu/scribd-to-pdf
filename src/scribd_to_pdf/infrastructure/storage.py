@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from scribd_to_pdf.application.errors import ConversionError
+from scribd_to_pdf.application.conversion import ConversionError
 from scribd_to_pdf.domain.document import Document
 
 MANIFEST_NAME = "capture.json"

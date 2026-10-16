@@ -1,4 +1,3 @@
-from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
@@ -7,19 +6,21 @@ from scribd_to_pdf.application.ports import (
     CaptureRepository,
     PageCapturer,
     PdfBuilder,
+    ProgressListener,
     ReadySignal,
     TextRecognizer,
 )
 from scribd_to_pdf.domain.document import Document
 
 
+class ConversionError(Exception):
+    pass
+
+
 class CaptureMode(Enum):
     NEW = auto()
     RESUME = auto()
     REUSE = auto()
-
-
-ProgressListener = Callable[[str], None]
 
 
 @dataclass(frozen=True)
@@ -57,17 +58,11 @@ class DocumentConverter:
     text_recognizer: TextRecognizer
     default_output_folder: Path
 
-    def output_path(
-        self,
-        document: Document,
-        destination: Path | None = None,
-        folder: Path | None = None,
-    ) -> Path:
+    def output_path(self, document: Document, destination: Path | None = None) -> Path:
         if destination is not None:
             return destination.expanduser()
 
-        directory = folder if folder is not None else self.default_output_folder
-        return directory / f"{document.document_id}.pdf"
+        return self.default_output_folder / f"{document.document_id}.pdf"
 
     def check_requirements(self, request: ConversionRequest) -> None:
         if request.ocr_language is not None:

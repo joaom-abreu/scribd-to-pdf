@@ -4,11 +4,11 @@ from pathlib import Path
 
 from scribd_to_pdf.application.conversion import (
     CaptureMode,
+    ConversionError,
     ConversionRequest,
     ConversionResult,
     DocumentConverter,
 )
-from scribd_to_pdf.application.errors import ConversionError
 from scribd_to_pdf.bootstrap import build_converter
 from scribd_to_pdf.domain.document import Document
 

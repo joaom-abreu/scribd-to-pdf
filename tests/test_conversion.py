@@ -155,11 +155,9 @@ def test_requirements_are_checked_only_with_ocr(harness, ocr_language):
         harness.text_recognizer.check_available.assert_called_once_with()
 
 
-def test_output_path_prefers_destination_then_folder_then_default_folder(harness, tmp_path):
+def test_output_path_prefers_destination_over_default_folder(harness, tmp_path):
     destination = tmp_path / "escolhido.pdf"
-    folder = tmp_path / "lembrada"
     converter = harness.converter
 
-    assert converter.output_path(DOCUMENT, destination, folder) == destination
-    assert converter.output_path(DOCUMENT, None, folder) == folder / "123.pdf"
+    assert converter.output_path(DOCUMENT, destination) == destination
     assert converter.output_path(DOCUMENT) == tmp_path / "pdfs" / "123.pdf"

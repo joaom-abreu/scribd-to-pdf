@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from scribd_to_pdf.application.errors import ConversionError
+from scribd_to_pdf.application.conversion import ConversionError
 from scribd_to_pdf.domain.document import Document
 from scribd_to_pdf.infrastructure.storage import CaptureStore, FileCaptureRepository
 

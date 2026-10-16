@@ -4,7 +4,7 @@ from typing import Protocol
 
 from scribd_to_pdf.domain.document import Document
 
-StatusListener = Callable[[str], None]
+ProgressListener = Callable[[str], None]
 ReadySignal = Callable[[], None]
 
 
@@ -19,7 +19,7 @@ class PageCapturer(Protocol):
         *,
         resume: bool,
         wait_for_ready: ReadySignal,
-        on_status: StatusListener,
+        on_status: ProgressListener,
     ) -> list[Path]: ...
 
 

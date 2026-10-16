@@ -3,14 +3,12 @@ from pathlib import Path
 
 from scribd_to_pdf.application.errors import ConversionError
 from scribd_to_pdf.domain.document import Document
-from scribd_to_pdf.infrastructure.directories import user_data_directory
 
-CAPTURES_DIRECTORY = "captures"
 MANIFEST_NAME = "capture.json"
 
 
 def default_captures_root() -> Path:
-    return user_data_directory() / CAPTURES_DIRECTORY
+    return Path.home() / ".scribd-to-pdf" / "captures"
 
 
 class CaptureStore:

@@ -94,7 +94,7 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="PASTA",
         help=(
             "Pasta onde as capturas são salvas e procuradas para --resume e --reuse. "
-            "Padrão: pasta de dados do usuário (veja o README)."
+            "Padrão: ~/.scribd-to-pdf/captures."
         ),
     )
 

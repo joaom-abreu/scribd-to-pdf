@@ -12,6 +12,14 @@ def test_default_pdf_goes_to_the_current_folder(tmp_path, monkeypatch):
     assert build_converter().output_path(DOCUMENT) == tmp_path / "123.pdf"
 
 
+def test_captures_default_to_folder_in_home(tmp_path, monkeypatch):
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+
+    captures = build_converter().captures
+
+    assert captures.store(DOCUMENT).directory == tmp_path / ".scribd-to-pdf" / "captures" / "123"
+
+
 def test_captures_dir_expands_user_folder(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     monkeypatch.setenv("HOME", str(tmp_path))

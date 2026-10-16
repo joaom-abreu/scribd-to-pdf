@@ -7,7 +7,6 @@ from playwright.sync_api import Locator, Page, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from scribd_to_pdf.application.errors import ConversionError
-from scribd_to_pdf.domain.capture import CaptureProgress
 from scribd_to_pdf.domain.document import Document
 from scribd_to_pdf.infrastructure.storage import CaptureStore, FileCaptureRepository
 
@@ -135,7 +134,7 @@ def capture_document(
     wait_for_ready: Callable[[], None],
     on_status: Callable[[str], None],
 ) -> list[Path]:
-    previous = store.load_progress() if resume else None
+    previous_total = store.load_total_pages() if resume else None
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=False)
@@ -158,9 +157,13 @@ def capture_document(
             total_pages = reader.count_pages()
             on_status(f"Total de páginas: {total_pages}")
 
-            progress = _starting_progress(store, previous, total_pages)
-            store.save_progress(progress)
-            _capture_pages(reader, store, progress, on_status)
+            if previous_total is not None and previous_total != total_pages:
+                raise ValueError(
+                    "O total de páginas difere da captura registrada. Faça uma nova captura."
+                )
+
+            store.save_total_pages(total_pages)
+            _capture_pages(reader, store, total_pages, on_status, resume)
         finally:
             browser.close()
 
@@ -168,43 +171,21 @@ def capture_document(
     return store.page_paths(total_pages)
 
 
-def _starting_progress(
-    store: CaptureStore,
-    previous: CaptureProgress | None,
-    total_pages: int,
-) -> CaptureProgress:
-    if previous is None:
-        return CaptureProgress(total_pages)
-
-    if previous.total_pages != total_pages:
-        raise ValueError(
-            "O total de páginas difere da captura registrada. Faça uma nova captura."
-        )
-
-    return CaptureProgress(
-        total_pages,
-        frozenset(number for number in previous.captured_pages if store.has_page(number)),
-    )
-
-
 def _capture_pages(
     reader: ScribdReader,
     store: CaptureStore,
-    progress: CaptureProgress,
+    total_pages: int,
     on_status: Callable[[str], None],
+    resume: bool,
 ) -> None:
-    total_pages = progress.total_pages
-
     for number in range(1, total_pages + 1):
-        if number in progress.captured_pages:
+        if resume and store.has_page(number):
             on_status(f"Reutilizando página {number} de {total_pages}...")
             reader.scroll_to(number)
             continue
 
         on_status(f"Capturando página {number} de {total_pages}...")
         _capture_with_retries(reader, number, store.page_path(number), on_status)
-        progress = progress.with_page(number)
-        store.save_progress(progress)
 
 
 def _capture_with_retries(

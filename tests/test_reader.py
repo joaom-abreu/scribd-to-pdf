@@ -7,7 +7,6 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
 from scribd_to_pdf.application.errors import ConversionError
-from scribd_to_pdf.domain.capture import CaptureProgress
 from scribd_to_pdf.domain.document import Document
 from scribd_to_pdf.infrastructure import reader as reader_module
 from scribd_to_pdf.infrastructure.reader import CAPTURE_ATTEMPTS, PlaywrightPageCapturer, ScribdReader
@@ -79,9 +78,14 @@ def store(tmp_path) -> CaptureStore:
     return store
 
 
-def capture_pages(reader: FakeReader, store: CaptureStore, total_pages: int) -> list[str]:
+def capture_pages(
+    reader: FakeReader,
+    store: CaptureStore,
+    total_pages: int,
+    resume: bool = False,
+) -> list[str]:
     messages: list[str] = []
-    reader_module._capture_pages(reader, store, CaptureProgress(total_pages), messages.append)
+    reader_module._capture_pages(reader, store, total_pages, messages.append, resume)
     return messages
 
 
@@ -93,17 +97,28 @@ def test_slow_page_is_retried_with_growing_pauses(store):
     assert reader.captured == [1, 2, 3]
     assert reader.pauses == [2_000, 4_000]
     assert f"Tentativa {CAPTURE_ATTEMPTS} de {CAPTURE_ATTEMPTS}" in "\n".join(messages)
-    assert store.load_progress().is_complete
+    assert all(store.has_page(number) for number in (1, 2, 3))
 
 
-def test_page_that_never_loads_keeps_previous_progress(store):
+def test_page_that_never_loads_keeps_pages_already_captured(store):
     reader = FakeReader({2: CAPTURE_ATTEMPTS})
 
     with pytest.raises(PlaywrightTimeoutError):
         capture_pages(reader, store, 3)
 
     assert reader.captured == [1]
-    assert store.load_progress().captured_pages == frozenset({1})
+    assert store.has_page(1)
+    assert not store.has_page(2)
+
+
+@pytest.mark.parametrize("resume, captured", [(True, [2, 3]), (False, [1, 2, 3])])
+def test_only_resume_skips_pages_already_saved(store, resume, captured):
+    store.page_path(1).write_bytes(b"png")
+    reader = FakeReader()
+
+    capture_pages(reader, store, 3, resume=resume)
+
+    assert reader.captured == captured
 
 
 @pytest.fixture(scope="module")

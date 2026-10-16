@@ -11,7 +11,6 @@ from scribd_to_pdf.application.conversion import (
     ConversionResult,
     DocumentConverter,
 )
-from scribd_to_pdf.domain.capture import CaptureProgress
 from scribd_to_pdf.domain.document import Document
 from scribd_to_pdf.infrastructure.pdf import Img2PdfBuilder, count_pages
 from scribd_to_pdf.infrastructure.storage import CaptureStore, FileCaptureRepository
@@ -38,7 +37,7 @@ def harness(tmp_path: Path) -> Harness:
         with Image.new("RGB", (32, 48), color="white") as image:
             image.save(store.page_path(number))
 
-    store.save_progress(CaptureProgress(2, frozenset({1, 2})))
+    store.save_total_pages(2)
     capturer = Mock()
     pdf_builder = Mock(wraps=Img2PdfBuilder())
     text_recognizer = Mock()

@@ -3,29 +3,10 @@ from pathlib import Path
 
 import img2pdf
 from PIL import Image
-from pypdf import PdfReader
-from pypdf.errors import PdfReadError
 
 from scribd_to_pdf.application.errors import ConversionError
 
 COMPACT_JPEG_QUALITY = 85
-PDF_ERRORS = (
-    OSError,
-    ValueError,
-    PdfReadError,
-    img2pdf.AlphaChannelError,
-    img2pdf.ExifOrientationError,
-    img2pdf.ImageOpenError,
-    img2pdf.JpegColorspaceError,
-    img2pdf.NegativeDimensionError,
-    img2pdf.PdfTooLargeError,
-    img2pdf.UnsupportedColorspaceError,
-)
-
-
-def count_pages(path: Path) -> int:
-    with path.open("rb") as stream:
-        return len(PdfReader(stream).pages)
 
 
 def create_pdf(image_paths: list[Path], output_path: Path, *, compact: bool = False) -> Path:
@@ -44,11 +25,6 @@ def create_pdf(image_paths: list[Path], output_path: Path, *, compact: bool = Fa
     with output_path.open("wb") as stream:
         img2pdf.convert(pages, outputstream=stream)
 
-    page_count = count_pages(output_path)
-
-    if page_count != len(image_paths):
-        raise ValueError(f"PDF com {page_count} páginas; esperado: {len(image_paths)}.")
-
     return output_path
 
 
@@ -66,5 +42,5 @@ class Img2PdfBuilder:
     def build(self, image_paths: list[Path], output_path: Path, *, compact: bool) -> Path:
         try:
             return create_pdf(image_paths, output_path, compact=compact)
-        except PDF_ERRORS as error:
+        except (OSError, ValueError, img2pdf.ImageOpenError) as error:
             raise ConversionError(f"Não foi possível gerar o PDF: {error}") from error

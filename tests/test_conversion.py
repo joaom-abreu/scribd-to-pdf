@@ -4,6 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 from PIL import Image
+from pypdf import PdfReader
 
 from scribd_to_pdf.application.conversion import (
     CaptureMode,
@@ -12,7 +13,7 @@ from scribd_to_pdf.application.conversion import (
     DocumentConverter,
 )
 from scribd_to_pdf.domain.document import Document
-from scribd_to_pdf.infrastructure.pdf import Img2PdfBuilder, count_pages
+from scribd_to_pdf.infrastructure.pdf import Img2PdfBuilder
 from scribd_to_pdf.infrastructure.storage import CaptureStore, FileCaptureRepository
 
 DOCUMENT = Document("123", "https://www.scribd.com/document/123/livro")
@@ -72,7 +73,7 @@ def test_reuse_builds_pdf_without_opening_browser(harness, tmp_path):
 
     harness.capturer.capture.assert_not_called()
     assert result == ConversionResult((tmp_path / "livro.pdf").resolve())
-    assert count_pages(result.pdf_path) == 2
+    assert len(PdfReader(result.pdf_path).pages) == 2
     assert progress == ["Reutilizando 2 páginas salvas.", "Gerando PDF com 2 páginas..."]
 
 

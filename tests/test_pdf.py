@@ -5,7 +5,7 @@ from PIL import Image
 from pypdf import PdfReader
 
 from scribd_to_pdf.application.errors import ConversionError
-from scribd_to_pdf.infrastructure.pdf import Img2PdfBuilder, count_pages, create_pdf
+from scribd_to_pdf.infrastructure.pdf import Img2PdfBuilder, create_pdf
 
 PAGE_COLORS = (
     (255, 0, 0),
@@ -35,7 +35,7 @@ def test_creates_pdf_with_every_page_in_order(tmp_path: Path, page_images: list[
     result = create_pdf(page_images, output)
 
     assert result == output
-    assert count_pages(output) == len(PAGE_COLORS)
+    assert len(PdfReader(output).pages) == len(PAGE_COLORS)
 
     with output.open("rb") as stream:
         actual_colors = [
@@ -107,7 +107,7 @@ def test_compact_uses_jpeg_only_where_it_is_smaller(tmp_path: Path, mixed_pages:
     assert page_filters(regular) == ["/FlateDecode", "/FlateDecode"]
     assert page_filters(compact) == ["/DCTDecode", "/FlateDecode"]
     assert compact.stat().st_size < regular.stat().st_size
-    assert count_pages(compact) == 2
+    assert len(PdfReader(compact).pages) == 2
 
 
 def test_compact_keeps_captured_images(tmp_path: Path, mixed_pages: list[Path]):

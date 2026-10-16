@@ -152,7 +152,7 @@ def test_requirements_are_checked_only_with_ocr(harness, ocr_language):
     if ocr_language is None:
         harness.text_recognizer.check_available.assert_not_called()
     else:
-        harness.text_recognizer.check_available.assert_called_once_with(ocr_language)
+        harness.text_recognizer.check_available.assert_called_once_with()
 
 
 def test_output_path_prefers_destination_then_folder_then_default_folder(harness, tmp_path):

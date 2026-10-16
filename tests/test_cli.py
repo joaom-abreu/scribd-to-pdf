@@ -41,16 +41,16 @@ def check_requirements(converter):
 
 
 @pytest.mark.parametrize("mode", [[], ["--reuse"], ["--resume"]])
-def test_missing_language_stops_before_conversion(cli, convert, check_requirements, capsys, mode):
-    check_requirements.side_effect = ConversionError("Falta o modelo Francês (fra).")
+def test_missing_ocrmypdf_stops_before_conversion(cli, convert, check_requirements, capsys, mode):
+    check_requirements.side_effect = ConversionError("O comando 'ocrmypdf' não foi encontrado.")
 
     with pytest.raises(SystemExit) as error:
-        cli([URL, *mode, "--ocr", "--ocr-language", "por+fra"])
+        cli([URL, *mode, "--ocr"])
 
     assert error.value.code == 1
-    assert check_requirements.call_args.args[0].ocr_language == "por+fra"
+    check_requirements.assert_called_once()
     convert.assert_not_called()
-    assert "fra" in capsys.readouterr().err
+    assert "ocrmypdf" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(

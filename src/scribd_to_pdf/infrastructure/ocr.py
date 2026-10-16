@@ -7,12 +7,8 @@ from tempfile import TemporaryDirectory
 from pypdf.errors import PdfReadError
 
 from scribd_to_pdf.application.errors import ConversionError
-from scribd_to_pdf.domain.languages import DEFAULT_LANGUAGE, describe_language, normalize_languages
 from scribd_to_pdf.infrastructure.files import DEFAULT_FILE_MODE
 from scribd_to_pdf.infrastructure.pdf import count_pages
-
-LIST_LANGUAGES_TIMEOUT_SECONDS = 5
-LANGUAGE_LIST_HEADER = "List of available languages"
 
 
 class OcrError(ConversionError):
@@ -37,19 +33,12 @@ class _OcrOutputs:
         return self.directory / "previous.txt"
 
 
-def check_ocr_available(language: str = DEFAULT_LANGUAGE) -> str:
-    codes = set(normalize_languages(language).split("+"))
-    executable = _find_executable("ocrmypdf", "Instale OCRmyPDF e os idiomas do Tesseract; veja o README.")
-    installed = _installed_languages()
-    missing = sorted(codes - installed)
+def check_ocr_available() -> str:
+    executable = shutil.which("ocrmypdf")
 
-    if missing:
+    if executable is None:
         raise OcrError(
-            "Faltam modelos de idioma do Tesseract: "
-            + ", ".join(describe_language(code) for code in missing)
-            + f".\nIdiomas instalados: {', '.join(sorted(installed)) or 'nenhum'}.\n"
-            "Instale os modelos indicados ou selecione somente idiomas instalados. "
-            "Confira a instalação com 'tesseract --list-langs'."
+            "O comando 'ocrmypdf' não foi encontrado. Instale o OCRmyPDF e os idiomas do Tesseract; veja o README."
         )
 
     return executable
@@ -57,17 +46,17 @@ def check_ocr_available(language: str = DEFAULT_LANGUAGE) -> str:
 
 def add_ocr(
     pdf_path: Path,
-    language: str = DEFAULT_LANGUAGE,
+    language: str,
     *,
     text_path: Path | None = None,
 ) -> Path:
-    executable = check_ocr_available(language)
+    executable = check_ocr_available()
     pdf_path = pdf_path.resolve()
     expected_pages = count_pages(pdf_path)
 
     with TemporaryDirectory(prefix="ocr-", dir=pdf_path.parent) as directory:
         outputs = _OcrOutputs(Path(directory), export_text=text_path is not None)
-        command = _build_command(executable, normalize_languages(language), pdf_path, outputs)
+        command = _build_command(executable, language, pdf_path, outputs)
 
         try:
             subprocess.run(command, check=True)
@@ -87,43 +76,6 @@ def add_ocr(
             ) from error
 
     return pdf_path
-
-
-def _find_executable(command: str, hint: str) -> str:
-    executable = shutil.which(command)
-
-    if executable is None:
-        raise OcrError(f"O comando '{command}' não foi encontrado. {hint}")
-
-    return executable
-
-
-def _installed_languages() -> set[str]:
-    executable = _find_executable("tesseract", "Instale o Tesseract e os modelos dos idiomas escolhidos.")
-    check_installation = "Verifique a instalação com 'tesseract --list-langs'."
-
-    try:
-        result = subprocess.run(
-            [executable, "--list-langs"],
-            check=True,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=LIST_LANGUAGES_TIMEOUT_SECONDS,
-        )
-    except subprocess.TimeoutExpired as error:
-        raise OcrError(f"A consulta dos idiomas do Tesseract demorou demais. {check_installation}") from error
-    except subprocess.CalledProcessError as error:
-        detail = (error.stderr or error.stdout or "").strip()
-        raise OcrError(
-            f"Não foi possível consultar os idiomas do Tesseract (código {error.returncode}).\n{detail}".strip()
-        ) from error
-    except OSError as error:
-        raise OcrError(f"Não foi possível executar o Tesseract. {check_installation}") from error
-
-    lines = (line.strip() for line in result.stdout.splitlines())
-    return {line for line in lines if line and not line.startswith(LANGUAGE_LIST_HEADER)}
 
 
 def _build_command(executable: str, language: str, source: Path, outputs: _OcrOutputs) -> list[str]:
@@ -181,8 +133,8 @@ def _publish(outputs: _OcrOutputs, pdf_path: Path, text_path: Path | None) -> No
 
 
 class OcrMyPdfRecognizer:
-    def check_available(self, language: str) -> None:
-        check_ocr_available(language)
+    def check_available(self) -> None:
+        check_ocr_available()
 
     def recognize(self, pdf_path: Path, language: str, *, text_path: Path | None) -> None:
         try:

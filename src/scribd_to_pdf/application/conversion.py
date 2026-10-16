@@ -71,7 +71,7 @@ class DocumentConverter:
 
     def check_requirements(self, request: ConversionRequest) -> None:
         if request.ocr_language is not None:
-            self.text_recognizer.check_available(request.ocr_language)
+            self.text_recognizer.check_available()
 
     def convert(
         self,

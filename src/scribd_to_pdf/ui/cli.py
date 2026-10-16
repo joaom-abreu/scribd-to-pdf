@@ -11,8 +11,8 @@ from scribd_to_pdf.application.conversion import (
 from scribd_to_pdf.application.errors import ConversionError
 from scribd_to_pdf.bootstrap import build_converter
 from scribd_to_pdf.domain.document import Document
-from scribd_to_pdf.domain.languages import DEFAULT_LANGUAGE, LANGUAGES
 
+DEFAULT_LANGUAGE = "por"
 READY_PROMPT = (
     "\nAguarde a capa carregar e feche avisos que ainda cubram o documento."
     "\nPressione Enter para ativar Fullscreen e capturar..."
@@ -128,9 +128,8 @@ def _build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_LANGUAGE,
         metavar="IDIOMA",
         help=(
-            "Idioma do OCR: "
-            + ", ".join(f"{code} ({name.lower()})" for code, name in LANGUAGES.items())
-            + f". Combine idiomas com +, como por+eng. Padrão: {DEFAULT_LANGUAGE}."
+            "Idioma do OCR: por (português), eng (inglês), spa (espanhol), fra (francês), deu (alemão). "
+            f"Combine idiomas com +, como por+eng. Padrão: {DEFAULT_LANGUAGE}."
         ),
     )
     parser.add_argument(

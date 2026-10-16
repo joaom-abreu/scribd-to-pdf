@@ -23,7 +23,6 @@ dev = [
 
 [project.scripts]
 scribd-to-pdf = "scribd_to_pdf.ui.cli:main"
-scribd-to-pdf-gui = "scribd_to_pdf.ui.gui:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

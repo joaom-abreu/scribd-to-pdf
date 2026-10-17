@@ -12,9 +12,5 @@ __pycache__/
 build/
 dist/
 
-# Arquivos temporários e resultados
-temp/
-output/
-
 # Configurações locais da IDE
 .idea/

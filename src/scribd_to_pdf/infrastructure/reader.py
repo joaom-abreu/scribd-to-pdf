@@ -1,5 +1,4 @@
 import re
-from collections.abc import Callable
 from pathlib import Path
 
 from playwright.sync_api import Error as PlaywrightError
@@ -7,6 +6,7 @@ from playwright.sync_api import Locator, Page, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from scribd_to_pdf.application.conversion import ConversionError
+from scribd_to_pdf.application.ports import ProgressListener, ReadySignal
 from scribd_to_pdf.domain.document import Document
 from scribd_to_pdf.infrastructure.storage import CaptureStore, FileCaptureRepository
 
@@ -111,8 +111,8 @@ class PlaywrightPageCapturer:
         document: Document,
         *,
         resume: bool,
-        wait_for_ready: Callable[[], None],
-        on_status: Callable[[str], None],
+        wait_for_ready: ReadySignal,
+        on_status: ProgressListener,
     ) -> list[Path]:
         try:
             return capture_document(
@@ -131,8 +131,8 @@ def capture_document(
     store: CaptureStore,
     *,
     resume: bool,
-    wait_for_ready: Callable[[], None],
-    on_status: Callable[[str], None],
+    wait_for_ready: ReadySignal,
+    on_status: ProgressListener,
 ) -> list[Path]:
     previous_total = store.load_total_pages() if resume else None
 
@@ -175,7 +175,7 @@ def _capture_pages(
     reader: ScribdReader,
     store: CaptureStore,
     total_pages: int,
-    on_status: Callable[[str], None],
+    on_status: ProgressListener,
     resume: bool,
 ) -> None:
     for number in range(1, total_pages + 1):
@@ -192,7 +192,7 @@ def _capture_with_retries(
     reader: ScribdReader,
     number: int,
     path: Path,
-    on_status: Callable[[str], None],
+    on_status: ProgressListener,
 ) -> None:
     for attempt in range(1, CAPTURE_ATTEMPTS + 1):
         try:
